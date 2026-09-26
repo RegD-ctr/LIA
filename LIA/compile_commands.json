@@ -1,0 +1,7 @@
+[
+  {
+    "directory": "c:/Users/diego/OneDrive/Desktop/LIA",
+    "command": "C:\\msys64\\ucrt64\\bin\\g++.exe -std=gnu++17 -c c:/Users/diego/OneDrive/Desktop/LIA/LIA.cpp -o c:/Users/diego/OneDrive/Desktop/LIA/LIA.o",
+    "file": "c:/Users/diego/OneDrive/Desktop/LIA/LIA.cpp"
+  }
+]

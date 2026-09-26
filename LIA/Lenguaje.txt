@@ -1,0 +1,28 @@
+class MiClase {
+    $ Declaracion de variables basicas
+    int contador = 0;
+    float gravedad = 9.81;
+    float masa_electron = 9.1E-31;
+    string saludo = "Hola LIA";
+    char vocal = 'a';
+
+    def iniciar_proceso() {
+        output(saludo);
+        
+        $ Ciclo condicional con operadores logicos y relacionales
+        if (contador <= 10 && gravedad != 0.0) {
+            loop contador to 10 {
+                contador = contador + 1;
+            }
+        } else {
+            break;
+        }
+
+        $ Bucle while usando la negacion
+        bool bandera = false; 
+        while (!bandera || contador % 2 == 0) {
+            input(bandera);
+        }
+    }
+}
+endclass

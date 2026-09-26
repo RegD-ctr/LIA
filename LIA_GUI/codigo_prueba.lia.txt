@@ -1,0 +1,113 @@
+class ( miPrograma ) {
+
+    $ ── Declaraciones: todos los tipos ──────────────────────────
+    def x, y, z        : int ;
+    def pi, radio       : float ;
+    def letra          : char ;
+    def texto          : string ;
+    def activo         : bool ;
+
+    $ ── Constante entera (cteentera) ────────────────────────────
+    x = 42 ;
+    y = 0 ;
+    z = 100 ;
+
+    $ ── Constante real (ctereal) ────────────────────────────────
+    pi = 3.14 ;
+
+    $ ── Constante notación científica (ctenotacion) ─────────────
+    radio = 1.5E+2 ;
+
+    $ ── Constante carácter (ctecaracter) ────────────────────────
+    letra = 'A' ;
+
+    $ ── Constante string (ctestring) ────────────────────────────
+    texto = "Hola LIA" ;
+
+    $ ── Operadores aritméticos: +  -  *  /  % ───────────────────
+    x = y + 10 ;
+    y = z - 5 ;
+    z = x * y ;
+    x = z / 4 ;
+    y = z % 3 ;
+
+    $ ── Expresión con paréntesis ────────────────────────────────
+    z = ( x + y ) * ( z - 1 ) ;
+
+    $ ── Asignación con resultado de comparación (bool) ──────────
+    activo = x > 0 ;
+
+    $ ── if simple · operador == ─────────────────────────────────
+    if ( x == 0 ) {
+        y = 1 ;
+    }
+
+    $ ── if / else · operador != ─────────────────────────────────
+    if ( x != y ) {
+        z = x - y ;
+    else
+        z = 0 ;
+    }
+
+    $ ── operador < ──────────────────────────────────────────────
+    if ( x < y ) {
+        x = x + 1 ;
+    }
+
+    $ ── operador <= ─────────────────────────────────────────────
+    if ( x <= z ) {
+        z = z + y ;
+    }
+
+    $ ── operador > ──────────────────────────────────────────────
+    if ( y > x ) {
+        y = y - 1 ;
+    }
+
+    $ ── operador >= · if / else ─────────────────────────────────
+    if ( z >= y ) {
+        x = 0 ;
+    else
+        x = z ;
+    }
+
+    $ ── operador lógico && ──────────────────────────────────────
+    if ( x > 0 && y > 0 ) {
+        z = x + y ;
+    }
+
+    $ ── operador lógico || ──────────────────────────────────────
+    if ( x == 0 || y == 0 ) {
+        y = 99 ;
+    }
+
+    $ ── operador lógico ! ───────────────────────────────────────
+    if ( ! x == 0 ) {
+        y = 5 ;
+    }
+
+    $ ── while ───────────────────────────────────────────────────
+    while ( y > 0 ) {
+        y = y - 1 ;
+    }
+
+    $ ── do / dowhile ────────────────────────────────────────────
+    do
+        z = z + 1 ;
+    dowhile ( z < 50 ) ;
+
+    $ ── loop + break ────────────────────────────────────────────
+    loop {
+        x = x + 1 ;
+        if ( x >= 10 ) {
+            break ;
+        }
+    }
+
+    $ ── input: escritura/salida (múltiples expresiones) ─────────
+    input ( x, y + z, z * 2 ) ;
+
+    $ ── output: lectura/entrada (múltiples variables) ───────────
+    output ( x, y, z ) ;
+
+}

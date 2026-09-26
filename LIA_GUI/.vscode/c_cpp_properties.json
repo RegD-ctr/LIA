@@ -1,0 +1,26 @@
+//este codigo solo es para arreglar los 
+//subrrayados rojos que IntelliSens no reconoce de QT
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Qt/6.11.1/mingw_64/include",
+                "C:/Qt/6.11.1/mingw_64/include/QtWidgets",
+                "C:/Qt/6.11.1/mingw_64/include/QtGui",
+                "C:/Qt/6.11.1/mingw_64/include/QtCore",
+                "C:/Qt/Tools/mingw1310_64/include"
+            ],
+            "defines": [
+                "LIA_GUI_MODE",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compilerPath": "C:/Qt/Tools/mingw1310_64/bin/g++.exe",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}

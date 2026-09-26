@@ -1,0 +1,182 @@
+/*
+*Lenguajes y Autómatas 6y
+*Lenguaje LIA
+*Reyes Gutiérrez Diego 23041065
+*Perez Macias Daniel   23041055
+*/
+#include <iostream>
+#include <string>
+#include <vector>
+#include <cctype>
+#include <unordered_set>
+
+//Cambiarlo 
+enum TokenType {
+    reservada = 100,
+    identificador = 101,
+    enteros = 102,
+    reales = 103,
+    notacion_cientifica = 104,
+    suma = 105,
+    resta = 106,
+    multiplicacion = 107,
+    division = 108,
+    asigna = 109,
+    igual = 110,
+    menor = 111,
+    menorigual = 112,
+    mayor = 113,
+    mayorigual = 114,
+    diferente = 115,
+    op_not = 116,
+    op_and = 117,
+    op_or = 118,
+    parentesis_abre = 119,
+    parentesis_cierra = 120,
+    corchete_abre = 121,
+    corchete_cierra = 122,
+    punto_coma = 123,
+    coma = 124,
+    cte_caracter = 125,
+    cte_string = 126,
+    comentario_linea = 127,
+    modulus = 128,
+    llave_abre = 129,
+    llave_cierra = 130,
+    dos_puntos = 131,
+    //Errores léxicos de LIA
+    //numero real incompleto (falta parte entera o decimal)
+    err_numreal_incompleto = 500,
+    //numero real con notacion incompleta o no admitida (falta digito después de la E o simbolo diferente de + o -)
+    err_numreal_exponencial_incompleto = 501,
+    //simbolo del eponencial no admitido (diferente de + o -)
+    err_numreal_exponencial_invalido = 502,
+    //Falta completar el simbolo AND (&&)
+    err_and_incompleto = 503,
+    //Falta completar el simbolo OR (||)
+    err_or_incompleto = 504,
+    //Caracter vacio ('')
+    err_cte_caracter_vacio = 505,
+    //Funcion no reconocida de la diagonal inversa (\n, \t, etc.)
+    err_caracter_no_reconocido = 506,
+    //Falta de cerrar comillas en cte_caracter (')
+    err_cte_caracter_incompleto = 507
+};
+
+//Palabras reservadas de LIA
+std::unordered_set<std::string> palabras_reservadas = {
+    "class", "endclass", "int", "float", "char", "string", "bool", "if",
+    "else", "do", "while", "input", "output", "def", "to", "break", "loop"
+};
+
+//Estructura para almacenar los tokens reconocidos
+struct token {
+    TokenType tipo;
+    std::string lexema;
+    int fila;
+    int columna;
+};
+
+const int AnalizadorLexico::MATRIZ[20][34] = {
+    // Estado 0 (inicio)
+    {   1,  1,  3, -1, -1,  1, -1, 105, 106, 107, 108, 128,  9, 12, 10, 11, 13, 14, 15, 17, 19, 506, 506,  0, 120, 119, 121, 122, 129, 130, 123, 124, -1, -1},    
+    // Estado 1 (identificador/palabra reservada)
+    {   1,  1,  1,  1, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101, -101},
+    // Estado 2 (no usado directamente)
+    {  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},    
+    // Estado 3 (primer dígito)
+    { -501, -501,  4, -501, 500, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501},    
+    // Estado 4 (entero)
+    { -501, -501,  4, -501,  5,  6, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501, -501},    
+    // Estado 5 (parte decimal)
+    { -502, -502,  5, -502, -502,  6, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502},
+    // Estado 6 (E/e en notación científica)
+    // Solo acepta dígito o signo
+    {  -1, -1,  8, -1, -1, -1,  7,  7,  7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+    // Estado 7 (signo después de E)
+    // ERROR 104 si no sigue dígito
+    { -104, -104,  8, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104, -104},    
+    // Estado 8 (dígitos del exponente)
+    // Acepta con retroceso: 502 (notación científica)
+    { -502, -502,  8, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502, -502},    
+    // Estado 9 (=)
+    // Acepta con retroceso: 109 (=) o acepta directo: 110 (==)
+    { -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, 110, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109, -109},
+    // Estado 10 (<)
+    // Acepta con retroceso: 111 (<) o acepta directo: 112 (<=)
+    { -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, 112, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111, -111},
+    // Estado 11 (>)
+    // Acepta con retroceso: 113 (>) o acepta directo: 114 (>=)
+    { -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, 114, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113, -113},
+    // Estado 12 (!)
+    // Acepta con retroceso: 116 (!) o acepta directo: 115 (!=)
+    { -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, 115, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116, -116},
+    // Estado 13 (&)
+    // ERROR 503 con retroceso si no es &&, acepta directo: 117 (&&)
+    { -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, 117, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503, -503},
+    // Estado 14 (|)
+    // ERROR 504 con retroceso si no es ||, acepta directo: 118 (||)
+    { -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, 118, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504, -504},
+    // Estado 15 (')
+    // Espera un carácter, o acepta si es ' (ERROR 505), o acepta salto de línea (505)
+    {  16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 505, 16, 16, 505, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16},
+    // Estado 16 (carácter dentro de '')
+    // Solo acepta ' para cerrar: 125
+    {  -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 125, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
+    // Estado 17 (")
+    // Espera caracteres hasta encontrar " (126) o error si encuentra \n
+    {  18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 126, 18, -1, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18},
+    // Estado 18 (dentro de string)
+    // Continúa hasta encontrar " (126) o error si encuentra \n
+    {  18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 126, 18, -1, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18},
+    // Estado 19 ($)
+    // Comentario de línea, acepta todo hasta \n (127)
+    {  19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 127, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19}
+};
+
+//Estados del autómata
+std::vector<token> AnalizarLexico(const std::string& codigo){
+    //Implementación del autómata para el análisis léxico de LIA
+    std::vector<token> tokens;
+    int estado = 0;
+    std::string lexema = "";
+    int fila_actual = 1;
+    int columna_actual = 1;
+    int inicio_fila = 1;
+    int inicio_columna = 1;
+
+    for (size_t i = 0; i < codigo.length();) {
+        char c = codigo[i];
+        switch (estado){
+            case 0:
+            inicio_fila = fila_actual;
+            inicio_columna = columna_actual;
+
+            if(isspace(c)){
+
+                if (c == '\n') {
+                        fila_actual++;
+                        columna_actual = 1;
+                    } else {
+                        columna_actual++;
+                    }
+
+                i++;
+                continue;
+            }else if(isalpha(c)){
+                estado = 1;
+                lexema += c;
+                columna_actual++;
+                i++;
+            }else if(isdigit(c)){
+                estado = 3;
+                lexema += c;
+                columna_actual++;
+                i++;
+            }
+            case 1:
+
+        }
+    }
+        
+}

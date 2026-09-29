@@ -104,10 +104,10 @@ class ( miPrograma ) {
         }
     }
 
-    $ ── input: escritura/salida (múltiples expresiones) ─────────
-    input ( x, y + z, z * 2 ) ;
+    $ ── output: escritura/salida (múltiples expresiones) ─────────
+    output ( x, y + z, z * 2 ) ;
 
-    $ ── output: lectura/entrada (múltiples variables) ───────────
-    output ( x, y, z ) ;
+    $ ── input: lectura/entrada (múltiples variables) ───────────
+    input ( x, y, z ) ;
 
 }

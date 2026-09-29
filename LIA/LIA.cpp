@@ -349,9 +349,9 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 22. EST_ASIG → id = EXPR ;
     {101, 109, NT_EXPR, 123},
 
-    // 23. EST_WRITE (input) → input ( EXPR EXPR' ) ;
-    //     Nota: input es la instrucción de escritura/salida en LIA
-    {143, 119, NT_EXPR, NT_EXPR_P, 120, 123},
+    // 23. EST_WRITE (output) → output ( EXPR EXPR' ) ;
+    //     Nota: output es la instrucción de escritura/salida en LIA
+    {144, 119, NT_EXPR, NT_EXPR_P, 120, 123},
 
     // 24. EXPR' → , EXPR EXPR'
     {124, NT_EXPR, NT_EXPR_P},
@@ -359,9 +359,9 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 25. EXPR' → ε
     {},
 
-    // 26. EST_READ (output) → output ( id ID' ) ;
-    //     Nota: output es la instrucción de lectura/entrada en LIA
-    {144, 119, 101, NT_ID_P, 120, 123},
+    // 26. EST_READ (input) → input ( id ID' ) ;
+    //     Nota: input es la instrucción de lectura/entrada en LIA
+    {143, 119, 101, NT_ID_P, 120, 123},
 
     // 27. EST_BREAK → break ;
     {147, 123},
@@ -536,15 +536,15 @@ const int TABLA[31][45] = {
     // ESTATUTOS (5)
     {-1,-1,-1,-1,-1,-1,-1,12,13,12,13,12,12,12,12,12,12,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,13,-1,-1,-1,-1},
     // ESTATUTOS' (6)
-    {-1,-1,-1,-1,-1,-1,-1,15,-1,17,-1,16,19,18,20,21,14,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
+    {-1,-1,-1,-1,-1,-1,-1,15,-1,17,-1,16,18,19,20,21,14,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
     // EST_ASIG (7)
     {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,22,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
-    // EST_WRITE (8) — se activa con input (col 12)
-    {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,23,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
+    // EST_WRITE (8) — se activa con output (col 13)
+    {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,23,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
     // EXPR' (9)
     {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,25,-1,-1,24,-1,-1,-1},
-    // EST_READ (10) — se activa con output (col 13)
-    {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,26,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
+    // EST_READ (10) — se activa con input (col 12)
+    {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,26,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
     // EST_BREAK (11)
     {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,27,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1},
     // EST_DO (12)
@@ -621,9 +621,9 @@ std::string nombreSimbolo(int s) {
         case NT_ESTATUTOS:   return "ESTATUTOS";
         case NT_ESTATUTOS_P: return "ESTATUTOS'";
         case NT_EST_ASIG:    return "EST_ASIG";
-        case NT_EST_WRITE:   return "EST_WRITE (input)";
+        case NT_EST_WRITE:   return "EST_WRITE (output)";
         case NT_EXPR_P:      return "EXPR'";
-        case NT_EST_READ:    return "EST_READ (output)";
+        case NT_EST_READ:    return "EST_READ (input)";
         case NT_EST_BREAK:   return "EST_BREAK";
         case NT_EST_DO:      return "EST_DO";
         case NT_EST_IF:      return "EST_IF";

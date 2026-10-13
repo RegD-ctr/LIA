@@ -14,8 +14,9 @@
 #include <fstream>
 #include "LIA.h"
 
-//  SECCIÓN 1 — ANALIZADOR LÉXICO
-
+// ─────────────────────────────────────────────────────────────────────────────
+// SECCIÓN 1 — ANALIZADOR LÉXICO
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Palabras reservadas
 std::unordered_map<std::string, TokenType> palabras_reservadas = {
@@ -66,7 +67,6 @@ int obtenerCategoria(char c)
     if (c == ':') return 32;
     return 33;  // carácter desconocido → error 506
 }
-
 
 const int MATRIZ[20][34] = {
     // Estado 0: inicio / entre tokens
@@ -136,7 +136,6 @@ bool requiereRetroceso(int tokenType)
 
 // Motor compartido del autómata: procesa un paso del autómata y devuelve
 // el token aceptado (si lo hay) o un token vacío (tipo=reservada) si sigue leyendo.
-// Esta lógica es usada por AnalizarLexico() y por AnalizadorLexicoIncremental.
 static void procesarCaracter(
     char c, int& estadoActual, std::string& lexemaActual,
     int& fila, int& col, int& inicioColumna, size_t& pos,
@@ -271,7 +270,9 @@ token AnalizadorLexicoIncremental::siguienteToken()
 }
 
 
-//  SECCIÓN 2 — ANALIZADOR SINTÁCTICO
+// ─────────────────────────────────────────────────────────────────────────────
+// SECCIÓN 2 — ANALIZADOR SINTÁCTICO
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── Tabla de producciones ──
 // Cada entrada es la lista de símbolos que reemplazan al no terminal.
@@ -488,7 +489,7 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
 };
 
 // ── Mapeo de TokenType → columna de la tabla predictiva ──
-// Las columnas siguen el orden de tu hoja "Matriz predictiva" de izquierda a derecha:
+// Las columnas siguen el orden de la matriz predictiva:
 // 0:class  1:def  2:int  3:float  4:char  5:bool  6:string  7:if  8:else
 // 9:do  10:dowhile  11:while  12:input  13:output  14:loop  15:break
 // 16:id  17:cteentera  18:ctereal  19:ctenotacion  20:ctecaracter  21:ctestring
@@ -644,16 +645,450 @@ std::string nombreSimbolo(int s) {
         case NT_TERM_P:      return "TERM'";
         case NT_FACT:        return "FACT";
         case NT_OPREL:       return "OPREL";
+        case OP_NEG:         return "NEG";
+        case OP_FONDO_FALSO: return "(";
         case SIMBOLO_EOF:    return "$";
         default: return "?(" + std::to_string(s) + ")";
     }
 }
 
-// ── Algoritmo principal: pila + tabla predictiva ──
+// ─────────────────────────────────────────────────────────────────────────────
+// SECCIÓN 3 — INFRAESTRUCTURA DEL ANALIZADOR SEMÁNTICO
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Control del Estado Semántico ──
+void reiniciarEstadoSemantico(EstadoSemantico& e)
+{
+    // Limpieza de pilas
+    e.pila_operandos.clear();
+    e.pila_operadores.clear();
+    e.pila_tipos.clear();
+    e.pila_saltos.clear();
+    e.pila_avails.clear();
+    e.contadorTemporales = 0;
+
+    // Limpieza de tablas e índices
+    e.tabla_tipos.clear();
+    e.tabla_cuadruplos.clear();
+    e.tabla_constantes.clear();
+    e.tabla_simbolos.clear();
+    e.indice_simbolos.clear();
+    e.indice_constantes.clear();
+    e.errores.clear();
+
+    // Carga inicial del catálogo de tipos del lenguaje LIA
+    e.tabla_tipos.push_back({TIPO_ERROR,    "error",    0});
+    e.tabla_tipos.push_back({TIPO_INT,      "int",      4});
+    e.tabla_tipos.push_back({TIPO_FLOAT,    "float",    4});
+    e.tabla_tipos.push_back({TIPO_NOTACION, "notacion", 8});
+    e.tabla_tipos.push_back({TIPO_CHAR,     "char",     1});
+    e.tabla_tipos.push_back({TIPO_STRING,   "string",   8});
+    e.tabla_tipos.push_back({TIPO_BOOL,     "bool",     1});
+}
+
+void marcarErrorSemantico(EstadoSemantico& e, int fila, int columna, const std::string& mensaje)
+{
+    ErrorSemantico err;
+    err.fila    = fila;
+    err.columna = columna;
+    err.mensaje = mensaje;
+    e.errores.push_back(err);
+}
+
+// ── Funciones de las 5 Pilas (con guarda contra subdesbordamiento) ──
+
+// Pila de Operandos
+void empujarOperando(EstadoSemantico& e, const Operando& op)
+{
+    e.pila_operandos.push_back(op);
+}
+
+bool sacarOperando(EstadoSemantico& e, Operando& destino)
+{
+    if (e.pila_operandos.empty()) {
+        marcarErrorSemantico(e, 0, 0, "pila vacía: operandos");
+        return false;
+    }
+    destino = e.pila_operandos.back();
+    e.pila_operandos.pop_back();
+    return true;
+}
+
+bool topeOperando(const EstadoSemantico& e, Operando& destino)
+{
+    if (e.pila_operandos.empty()) {
+        return false;
+    }
+    destino = e.pila_operandos.back();
+    return true;
+}
+
+// Pila de Operadores
+void empujarOperador(EstadoSemantico& e, int op)
+{
+    e.pila_operadores.push_back(op);
+}
+
+bool sacarOperador(EstadoSemantico& e, int& destino)
+{
+    if (e.pila_operadores.empty()) {
+        marcarErrorSemantico(e, 0, 0, "pila vacía: operadores");
+        return false;
+    }
+    destino = e.pila_operadores.back();
+    e.pila_operadores.pop_back();
+    return true;
+}
+
+bool topeOperador(const EstadoSemantico& e, int& destino)
+{
+    if (e.pila_operadores.empty()) {
+        return false;
+    }
+    destino = e.pila_operadores.back();
+    return true;
+}
+
+// Pila de Tipos
+void empujarTipo(EstadoSemantico& e, int tipo)
+{
+    e.pila_tipos.push_back(tipo);
+}
+
+bool sacarTipo(EstadoSemantico& e, int& destino)
+{
+    if (e.pila_tipos.empty()) {
+        marcarErrorSemantico(e, 0, 0, "pila vacía: tipos");
+        return false;
+    }
+    destino = e.pila_tipos.back();
+    e.pila_tipos.pop_back();
+    return true;
+}
+
+bool topeTipo(const EstadoSemantico& e, int& destino)
+{
+    if (e.pila_tipos.empty()) {
+        return false;
+    }
+    destino = e.pila_tipos.back();
+    return true;
+}
+
+// Pila de Saltos
+void empujarSalto(EstadoSemantico& e, int salto)
+{
+    e.pila_saltos.push_back(salto);
+}
+
+bool sacarSalto(EstadoSemantico& e, int& destino)
+{
+    if (e.pila_saltos.empty()) {
+        marcarErrorSemantico(e, 0, 0, "pila vacía: saltos");
+        return false;
+    }
+    destino = e.pila_saltos.back();
+    e.pila_saltos.pop_back();
+    return true;
+}
+
+bool topeSalto(const EstadoSemantico& e, int& destino)
+{
+    if (e.pila_saltos.empty()) {
+        return false;
+    }
+    destino = e.pila_saltos.back();
+    return true;
+}
+
+// ── Control de Temporales (Avail) ──
+
+int obtenerTemporal(EstadoSemantico& e)
+{
+    // Si hay un temporal libre previamente liberado, reutilizarlo
+    if (!e.pila_avails.empty()) {
+        int n = e.pila_avails.back();
+        e.pila_avails.pop_back();
+        return n;
+    }
+    // Si no hay temporales libres, generar uno nuevo
+    e.contadorTemporales++;
+    return e.contadorTemporales;
+}
+
+std::string nombreTemporal(int n)
+{
+    return "T" + std::to_string(n);
+}
+
+void regresarTemporal(EstadoSemantico& e, int n)
+{
+    // Prevenir duplicados en la pila de temporales libres
+    for (int libre : e.pila_avails) {
+        if (libre == n) return;
+    }
+    e.pila_avails.push_back(n);
+}
+
+// ── Nombres y Conversiones de Tipos y Operadores ──
+
+std::string nombreOperador(int codigo)
+{
+    switch (codigo) {
+        case suma:           return "+";
+        case resta:          return "-";
+        case multiplicacion: return "*";
+        case division:       return "/";
+        case modulus:        return "%";
+        case igual:          return "==";
+        case diferente:      return "!=";
+        case menor:          return "<";
+        case menorigual:     return "<=";
+        case mayor:          return ">";
+        case mayorigual:     return ">=";
+        case op_and:         return "&&";
+        case op_or:          return "||";
+        case op_not:         return "!";
+        case OP_NEG:         return "NEG";
+        case OP_FONDO_FALSO: return "(";
+        default:             return "?";
+    }
+}
+
+// Se nombra 'nombreTipoDato' para no colisionar con 'nombreTipo(TokenType)' de mainwindow.cpp
+std::string nombreTipoDato(int codigo)
+{
+    switch (codigo) {
+        case TIPO_ERROR:    return "error";
+        case TIPO_INT:      return "int";
+        case TIPO_FLOAT:    return "float";
+        case TIPO_NOTACION: return "notacion";
+        case TIPO_CHAR:     return "char";
+        case TIPO_STRING:   return "string";
+        case TIPO_BOOL:     return "bool";
+        default:            return "desconocido";
+    }
+}
+
+int tipoDeToken(int tipoToken)
+{
+    switch (tipoToken) {
+        case enteros:             return TIPO_INT;
+        case reales:              return TIPO_FLOAT;
+        case notacion_cientifica: return TIPO_NOTACION;
+        case cte_caracter:        return TIPO_CHAR;
+        case cte_string:          return TIPO_STRING;
+        case res_int:             return TIPO_INT;
+        case res_float:           return TIPO_FLOAT;
+        case res_char:            return TIPO_CHAR;
+        case res_string:          return TIPO_STRING;
+        case res_bool:            return TIPO_BOOL;
+        default:                  return TIPO_ERROR;
+    }
+}
+
+// ── Cubo Semántico ──
+
+int AccionSemantica(int tipo1, int tipo2, int operador)
+{
+    // Si alguno de los tipos ya es erróneo, propagar error
+    if (tipo1 == TIPO_ERROR || tipo2 == TIPO_ERROR)
+        return TIPO_ERROR;
+
+    // Operadores aritméticos: + - * /
+    if (operador == suma || operador == resta || operador == multiplicacion || operador == division) {
+        bool esNum1 = (tipo1 == TIPO_INT || tipo1 == TIPO_FLOAT || tipo1 == TIPO_NOTACION);
+        bool esNum2 = (tipo2 == TIPO_INT || tipo2 == TIPO_FLOAT || tipo2 == TIPO_NOTACION);
+        if (esNum1 && esNum2) {
+            if (tipo1 == TIPO_INT && tipo2 == TIPO_INT)
+                return TIPO_INT;
+            return TIPO_FLOAT;
+        }
+        return TIPO_ERROR;
+    }
+
+    // Operador residuo (módulo): %
+    if (operador == modulus) {
+        if (tipo1 == TIPO_INT && tipo2 == TIPO_INT)
+            return TIPO_INT;
+        return TIPO_ERROR;
+    }
+
+    // Operadores relacionales: < <= > >=
+    if (operador == menor || operador == menorigual || operador == mayor || operador == mayorigual) {
+        bool esNum1 = (tipo1 == TIPO_INT || tipo1 == TIPO_FLOAT || tipo1 == TIPO_NOTACION);
+        bool esNum2 = (tipo2 == TIPO_INT || tipo2 == TIPO_FLOAT || tipo2 == TIPO_NOTACION);
+        if (esNum1 && esNum2)
+            return TIPO_BOOL;
+        return TIPO_ERROR;
+    }
+
+    // Operadores de igualdad: == !=
+    if (operador == igual || operador == diferente) {
+        bool esNum1 = (tipo1 == TIPO_INT || tipo1 == TIPO_FLOAT || tipo1 == TIPO_NOTACION);
+        bool esNum2 = (tipo2 == TIPO_INT || tipo2 == TIPO_FLOAT || tipo2 == TIPO_NOTACION);
+        if (esNum1 && esNum2)
+            return TIPO_BOOL;
+        if (tipo1 == TIPO_CHAR && tipo2 == TIPO_CHAR)
+            return TIPO_BOOL;
+        if (tipo1 == TIPO_STRING && tipo2 == TIPO_STRING)
+            return TIPO_BOOL;
+        if (tipo1 == TIPO_BOOL && tipo2 == TIPO_BOOL)
+            return TIPO_BOOL;
+        return TIPO_ERROR;
+    }
+
+    // Operadores lógicos: && ||
+    if (operador == op_and || operador == op_or) {
+        if (tipo1 == TIPO_BOOL && tipo2 == TIPO_BOOL)
+            return TIPO_BOOL;
+        return TIPO_ERROR;
+    }
+
+    return TIPO_ERROR;
+}
+
+// Sobrecarga conveniente para consultar con símbolo textual
+int AccionSemantica(int tipo1, int tipo2, const std::string& oper)
+{
+    int op = -1;
+    if (oper == "+") op = suma;
+    else if (oper == "-") op = resta;
+    else if (oper == "*") op = multiplicacion;
+    else if (oper == "/") op = division;
+    else if (oper == "%") op = modulus;
+    else if (oper == "==") op = igual;
+    else if (oper == "!=") op = diferente;
+    else if (oper == "<") op = menor;
+    else if (oper == "<=") op = menorigual;
+    else if (oper == ">") op = mayor;
+    else if (oper == ">=") op = mayorigual;
+    else if (oper == "&&") op = op_and;
+    else if (oper == "||") op = op_or;
+    return AccionSemantica(tipo1, tipo2, op);
+}
+
+int AccionSemanticaUnica(int tipo, int operador)
+{
+    if (tipo == TIPO_ERROR)
+        return TIPO_ERROR;
+
+    // Negación lógica: !
+    if (operador == op_not) {
+        if (tipo == TIPO_BOOL)
+            return TIPO_BOOL;
+        return TIPO_ERROR;
+    }
+
+    // Negación aritmética: NEG
+    if (operador == OP_NEG) {
+        if (tipo == TIPO_INT || tipo == TIPO_FLOAT || tipo == TIPO_NOTACION)
+            return tipo;
+        return TIPO_ERROR;
+    }
+
+    return TIPO_ERROR;
+}
+
+// Sobrecarga conveniente para unarios textuales
+int AccionSemanticaUnica(int tipo, const std::string& oper)
+{
+    int op = -1;
+    if (oper == "!" || oper == "op_not") op = op_not;
+    else if (oper == "NEG" || oper == "-") op = OP_NEG;
+    return AccionSemanticaUnica(tipo, op);
+}
+
+// ── Tablas de Símbolos y Constantes ──
+
+int insertarConstante(EstadoSemantico& e, const std::string& lexema, int tipo)
+{
+    std::string clave = std::to_string(tipo) + ":" + lexema;
+    auto it = e.indice_constantes.find(clave);
+    if (it != e.indice_constantes.end()) {
+        return it->second;
+    }
+
+    int direccion = static_cast<int>(e.tabla_constantes.size());
+    Constante c;
+    c.valor     = lexema;
+    c.tipo      = tipo;
+    c.direccion = direccion;
+
+    e.tabla_constantes.push_back(c);
+    e.indice_constantes[clave] = direccion;
+    return direccion;
+}
+
+int insertarSimbolo(EstadoSemantico& e, const std::string& nombre, int tipo)
+{
+    auto it = e.indice_simbolos.find(nombre);
+    if (it != e.indice_simbolos.end()) {
+        marcarErrorSemantico(e, 0, 0, "variable ya declarada: " + nombre);
+        return -1;
+    }
+
+    int direccion = static_cast<int>(e.tabla_simbolos.size());
+    Simbolo s;
+    s.nombre    = nombre;
+    s.tipo      = tipo;
+    s.direccion = direccion;
+
+    e.tabla_simbolos.push_back(s);
+    e.indice_simbolos[nombre] = direccion;
+    return direccion;
+}
+
+int buscarSimbolo(const EstadoSemantico& e, const std::string& nombre)
+{
+    auto it = e.indice_simbolos.find(nombre);
+    if (it != e.indice_simbolos.end()) {
+        return it->second;
+    }
+    return -1;
+}
+
+// ── Generación y Relleno de Cuádruplos (Backpatching) ──
+
+int generarCuadruplo(EstadoSemantico& e, const std::string& oper, const std::string& op1, const std::string& op2, const std::string& resultado)
+{
+    Cuadruplo q;
+    q.oper      = oper;
+    q.op1       = op1;
+    q.op2       = op2;
+    q.resultado = resultado;
+    e.tabla_cuadruplos.push_back(q);
+    // Devuelve el índice basado en 1 (BASE_CUADRUPLOS)
+    return static_cast<int>(e.tabla_cuadruplos.size()) - 1 + BASE_CUADRUPLOS;
+}
+
+int siguienteIndiceCuadruplo(const EstadoSemantico& e)
+{
+    return static_cast<int>(e.tabla_cuadruplos.size()) + BASE_CUADRUPLOS;
+}
+
+bool rellenarCuadruplo(EstadoSemantico& e, int indiceCuadruplo, const std::string& destino)
+{
+    int vecIdx = indiceCuadruplo - BASE_CUADRUPLOS;
+    if (vecIdx < 0 || vecIdx >= static_cast<int>(e.tabla_cuadruplos.size())) {
+        marcarErrorSemantico(e, 0, 0, "índice de cuádruplo inválido para rellenar: " + std::to_string(indiceCuadruplo));
+        return false;
+    }
+    e.tabla_cuadruplos[vecIdx].resultado = destino;
+    return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECCIÓN 4 — ALGORITMO PRINCIPAL DEL ANALIZADOR SINTÁCTICO (LL1)
+// ─────────────────────────────────────────────────────────────────────────────
+
 void AnalizadorSintactico::analizar(const std::string& codigo)
 {
     errores.clear();
     exitoso = true;
+
+    // Inicialización del estado semántico limpio para este análisis
+    reiniciarEstadoSemantico(semantica);
 
     AnalizadorLexicoIncremental lexico(codigo);
 
@@ -667,14 +1102,26 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
     while (!pila.empty()) {
         int tope = pila.top();
 
-        // ── Caso 1: ambos EOF → éxito ──
-        if (tope == SIMBOLO_EOF && actual.tipo == token_eof)
-            break;
+        // ── Caso 0: fondo de pila ──
+        if (tope == SIMBOLO_EOF) {
+            if (actual.tipo == token_eof) {
+                break;
+            } else {
+                ErrorSintactico err;
+                err.fila    = actual.fila;
+                err.columna = actual.columna;
+                err.mensaje = "Token inesperado después del fin del programa";
+                errores.push_back(err);
+                exitoso = false;
+                actual = lexico.siguienteToken();
+                continue;
+            }
+        }
 
+        // ── Caso 1: terminal ──
         bool esTerminal = (tope < 201 || tope > 231) && (tope != SIMBOLO_EOF);
 
         if (esTerminal) {
-            // ── Caso 2: terminal ──
             if (tope == static_cast<int>(actual.tipo)) {
                 // Coinciden → consumir
                 pila.pop();
@@ -694,35 +1141,35 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
             }
 
         } else if (tope >= 201 && tope <= 231) {
-        // ── Caso 3: no terminal → consultar tabla ──
-        int fil = ntAFila(tope);
-        int col = tokenAColumna(static_cast<int>(actual.tipo));
-        int prod = (col != -1) ? TABLA[fil][col] : -1;
+            // ── Caso 2: no terminal → consultar tabla ──
+            int fil = ntAFila(tope);
+            int col = tokenAColumna(static_cast<int>(actual.tipo));
+            int prod = (col != -1) ? TABLA[fil][col] : -1;
 
-        if (prod != -1) {
-            pila.pop();
-            const std::vector<int>& p = PRODUCCIONES[prod];
-            for (int i = (int)p.size() - 1; i >= 0; i--)
-                pila.push(p[i]);
-        } else {
-            // Celda vacía → error
-            ErrorSintactico err;
-            err.fila    = actual.fila;
-            err.columna = actual.columna;
-            err.mensaje = "Token inesperado '" + actual.lexema +
-                        "' (" + nombreSimbolo(static_cast<int>(actual.tipo)) +
-                        ") al analizar " + nombreSimbolo(tope);
-            errores.push_back(err);
-            exitoso = false;
-
-            if (actual.tipo == token_eof)
+            if (prod != -1) {
                 pila.pop();
-            else
-                actual = lexico.siguienteToken();
-            // ────────────────────────────────────────────────────────────────
+                const std::vector<int>& p = PRODUCCIONES[prod];
+                for (int i = (int)p.size() - 1; i >= 0; i--)
+                    pila.push(p[i]);
+            } else {
+                // Celda vacía → error
+                ErrorSintactico err;
+                err.fila    = actual.fila;
+                err.columna = actual.columna;
+                err.mensaje = "Token inesperado '" + actual.lexema +
+                            "' (" + nombreSimbolo(static_cast<int>(actual.tipo)) +
+                            ") al analizar " + nombreSimbolo(tope);
+                errores.push_back(err);
+                exitoso = false;
+
+                if (actual.tipo == token_eof)
+                    pila.pop();
+                else
+                    actual = lexico.siguienteToken();
+            }
         }
     }
-}}
+}
 
 /*
 std::string leerArchivo(const std::string& nombreArchivo)

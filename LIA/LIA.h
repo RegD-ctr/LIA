@@ -3,6 +3,8 @@
 
 #include <string>
 #include <vector>
+#include <stack>
+#include <unordered_map>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOKENS DEL ANALIZADOR LÉXICO
@@ -122,8 +124,105 @@ const int NT_TERM_P      = 229;   // TERM'
 const int NT_FACT        = 230;
 const int NT_OPREL       = 231;
 
-// Símbolo de fondo de pila
+// Símbolo de fondo de pila sintáctica
 const int SIMBOLO_EOF    = 999;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CÓDIGOS DE CLASES DE OPERANDOS
+// ─────────────────────────────────────────────────────────────────────────────
+const int CLASE_VARIABLE  = 1;
+const int CLASE_CONSTANTE = 2;
+const int CLASE_TEMPORAL  = 3;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CÓDIGOS DE TIPOS DE DATOS SEMÁNTICOS
+// ─────────────────────────────────────────────────────────────────────────────
+const int TIPO_ERROR    = 0;
+const int TIPO_INT      = 1;
+const int TIPO_FLOAT    = 2;
+const int TIPO_NOTACION = 3;
+const int TIPO_CHAR     = 4;
+const int TIPO_STRING   = 5;
+const int TIPO_BOOL     = 6;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CÓDIGOS DE OPERADORES ESPECIALES
+// Los operadores estándar usan su valor de TokenType (suma=105, resta=106, etc.)
+// ─────────────────────────────────────────────────────────────────────────────
+const int OP_NEG         = 900;   // Negación aritmética unaria
+const int OP_FONDO_FALSO = 901;   // Marca de paréntesis '('
+
+// Base de numeración de cuádruplos (1-based para saltos)
+const int BASE_CUADRUPLOS = 1;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ESTRUCTURAS DEL ANALIZADOR SEMÁNTICO
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Representa un tipo del sistema de tipos de LIA
+struct TipoDato {
+    int         codigo;
+    std::string nombre;
+    int         tamanoBytes;
+};
+
+// Elemento de la pila de operandos
+struct Operando {
+    std::string nombre;
+    int         direccion;   // Índice en tabla_simbolos o tabla_constantes; -1 para temporales
+    int         clase;       // CLASE_VARIABLE, CLASE_CONSTANTE o CLASE_TEMPORAL
+};
+
+// Variable declarada en la tabla de símbolos
+struct Simbolo {
+    std::string nombre;
+    int         tipo;
+    int         direccion;   // Índice asignado en tabla_simbolos
+};
+
+// Constante registrada en la tabla de constantes
+struct Constante {
+    std::string valor;
+    int         tipo;
+    int         direccion;   // Índice asignado en tabla_constantes
+};
+
+// Cuádruplo de código intermedio (operación de 3 direcciones)
+struct Cuadruplo {
+    std::string oper;
+    std::string op1;
+    std::string op2;
+    std::string resultado;
+};
+
+// Error semántico detectado durante el análisis
+struct ErrorSemantico {
+    int         fila;
+    int         columna;
+    std::string mensaje;
+};
+
+// Estado completo del análisis semántico
+struct EstadoSemantico {
+    // ── Las 5 Pilas (implementadas con vector para inspección visual en GUI) ──
+    std::vector<Operando> pila_operandos;
+    std::vector<int>      pila_operadores;   // Códigos de operador (TokenType, OP_NEG, OP_FONDO_FALSO)
+    std::vector<int>      pila_tipos;        // Un código de tipo por cada operando
+    std::vector<int>      pila_saltos;       // Índices de cuádruplos pendientes de rellenar
+    std::vector<int>      pila_avails;       // Números de temporales libres
+    int contadorTemporales;
+
+    // ── Tablas ──
+    std::vector<TipoDato>   tabla_tipos;
+    std::vector<Cuadruplo>  tabla_cuadruplos;
+    std::vector<Constante>  tabla_constantes;
+    std::vector<Simbolo>    tabla_simbolos;  // Variables declaradas
+    std::unordered_map<std::string, int> indice_simbolos;
+    std::unordered_map<std::string, int> indice_constantes;
+
+    // ── Errores ──
+    std::vector<ErrorSemantico> errores;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ERRORES SINTÁCTICOS
@@ -162,12 +261,64 @@ struct AnalizadorSintactico {
     std::vector<ErrorSintactico> errores;
     bool exitoso;
 
+    // Estado semántico accesible para la GUI
+    EstadoSemantico semantica;
+
     void analizar(const std::string& codigo);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FUNCIONES PÚBLICAS
+// FUNCIONES PÚBLICAS Y AUXILIARES
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Léxico
 std::vector<token> AnalizarLexico(const std::string& codigo);
+
+// Control de Estado Semántico
+void reiniciarEstadoSemantico(EstadoSemantico& e);
+void marcarErrorSemantico(EstadoSemantico& e, int fila, int columna, const std::string& mensaje);
+
+// Manejo de Pilas con protección contra subdesbordamiento (empty stack)
+void empujarOperando(EstadoSemantico& e, const Operando& op);
+bool sacarOperando(EstadoSemantico& e, Operando& destino);
+bool topeOperando(const EstadoSemantico& e, Operando& destino);
+
+void empujarOperador(EstadoSemantico& e, int op);
+bool sacarOperador(EstadoSemantico& e, int& destino);
+bool topeOperador(const EstadoSemantico& e, int& destino);
+
+void empujarTipo(EstadoSemantico& e, int tipo);
+bool sacarTipo(EstadoSemantico& e, int& destino);
+bool topeTipo(const EstadoSemantico& e, int& destino);
+
+void empujarSalto(EstadoSemantico& e, int salto);
+bool sacarSalto(EstadoSemantico& e, int& destino);
+bool topeSalto(const EstadoSemantico& e, int& destino);
+
+// Avail y Temporales
+int obtenerTemporal(EstadoSemantico& e);
+std::string nombreTemporal(int n);
+void regresarTemporal(EstadoSemantico& e, int n);
+
+// Nombres y Conversiones
+std::string nombreOperador(int codigo);
+std::string nombreTipoDato(int codigo);
+int tipoDeToken(int tipoToken);
+
+// Cubo Semántico
+int AccionSemantica(int tipo1, int tipo2, int operador);
+int AccionSemantica(int tipo1, int tipo2, const std::string& oper);
+int AccionSemanticaUnica(int tipo, int operador);
+int AccionSemanticaUnica(int tipo, const std::string& oper);
+
+// Tablas de Símbolos y Constantes
+int insertarConstante(EstadoSemantico& e, const std::string& lexema, int tipo);
+int insertarSimbolo(EstadoSemantico& e, const std::string& nombre, int tipo);
+int buscarSimbolo(const EstadoSemantico& e, const std::string& nombre);
+
+// Generación y Relleno de Cuádruplos (Backpatching)
+int generarCuadruplo(EstadoSemantico& e, const std::string& oper, const std::string& op1, const std::string& op2, const std::string& resultado);
+int siguienteIndiceCuadruplo(const EstadoSemantico& e);
+bool rellenarCuadruplo(EstadoSemantico& e, int indiceCuadruplo, const std::string& destino);
 
 #endif // LIA_H

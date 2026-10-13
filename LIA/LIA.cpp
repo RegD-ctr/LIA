@@ -1171,7 +1171,7 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
     }
 }
 
-/*
+
 std::string leerArchivo(const std::string& nombreArchivo)
 {
     std::ifstream archivo(nombreArchivo);
@@ -1185,7 +1185,7 @@ std::string leerArchivo(const std::string& nombreArchivo)
     archivo.close();
     return contenido;
 }
-
+/*
 int main()
 {
     std::string nombreArchivo = "C:/Users/diego/OneDrive/Desktop/LIA/Lenguaje.txt";

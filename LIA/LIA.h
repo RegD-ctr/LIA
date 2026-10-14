@@ -124,6 +124,34 @@ const int NT_TERM_P      = 229;   // TERM'
 const int NT_FACT        = 230;
 const int NT_OPREL       = 231;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ACCIONES SEMÁNTICAS (para traducción y generación de cuádruplos)
+// Van del 301 al 323 para no colisionar con TokenType ni con los no terminales
+// ─────────────────────────────────────────────────────────────────────────────
+const int AS_01 = 301;
+const int AS_02 = 302;
+const int AS_03 = 303;
+const int AS_04 = 304;
+const int AS_05 = 305;
+const int AS_06 = 306;
+const int AS_07 = 307;
+const int AS_08 = 308;
+const int AS_09 = 309;
+const int AS_10 = 310;
+const int AS_11 = 311;
+const int AS_12 = 312;
+const int AS_13 = 313;
+const int AS_14 = 314;
+const int AS_15 = 315;
+const int AS_16 = 316;
+const int AS_17 = 317;
+const int AS_18 = 318;
+
+// Auxiliares de tabla de símbolos
+const int AS_DECL_INI = 321;
+const int AS_ID       = 322;
+const int AS_TIPO     = 323;
+
 // Símbolo de fondo de pila sintáctica
 const int SIMBOLO_EOF    = 999;
 
@@ -255,7 +283,7 @@ struct AnalizadorLexicoIncremental {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ANALIZADOR SINTÁCTICO
+// ANALIZADOR SINTÁCTICO Y SEMÁNTICO
 // ─────────────────────────────────────────────────────────────────────────────
 struct AnalizadorSintactico {
     std::vector<ErrorSintactico> errores;
@@ -263,6 +291,21 @@ struct AnalizadorSintactico {
 
     // Estado semántico accesible para la GUI
     EstadoSemantico semantica;
+    bool exitosoSemantico;
+
+    // Estado interno para declaraciones y acciones semánticas
+    token                    ultimoConsumido;
+    bool                     enDeclaracion;
+    std::vector<std::string> variablesPendientes;
+
+    // Funciones auxiliares para acciones semánticas
+    void ejecutarAccion(int accion);
+    void aplicarOperacionBinaria(bool resultadoBooleano);
+
+    // Acciones de negación (2, 3, 4)
+    void accion_02();
+    void accion_03();
+    void accion_04();
 
     void analizar(const std::string& codigo);
 };

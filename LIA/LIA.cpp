@@ -1,6 +1,6 @@
 /*
  * Lenguajes y Autómatas 6y
- * Lenguaje LIA — Analizador Léxico + Sintáctico
+ * Lenguaje LIA — Analizador Léxico + Sintáctico + Semántico
  * Reyes Gutiérrez Diego  23041065
  * Perez Macias Daniel    23041055
  */
@@ -271,14 +271,15 @@ token AnalizadorLexicoIncremental::siguienteToken()
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECCIÓN 2 — ANALIZADOR SINTÁCTICO
+// SECCIÓN 2 — ANALIZADOR SINTÁCTICO Y ACCIONES EN PRODUCCIONES
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Tabla de producciones ──
+// ── Tabla de producciones con Símbolos de Acción Semántica ──
 // Cada entrada es la lista de símbolos que reemplazan al no terminal.
 // Índice = número de producción (1 a 67). El índice 0 no se usa.
 // Terminales:   usan los valores de TokenType (ej. res_class=132)
 // No terminales: usan las constantes NT_x (ej. NT_DECLARA=202)
+// Acciones:     usan las constantes AS_x (301 a 323)
 // Épsilon (ε):  vector vacío {}
 
 const std::vector<std::vector<int>> PRODUCCIONES = {
@@ -293,11 +294,11 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 3.  DECLARA → ε
     {},
 
-    // 4.  DECLARA' → def id ID' : TIPO ;
-    {145, 101, NT_ID_P, 131, NT_TIPO, 123},
+    // 4.  DECLARA' → def AS_DECL_INI id AS_ID ID' : TIPO AS_TIPO ;
+    {145, AS_DECL_INI, 101, AS_ID, NT_ID_P, 131, NT_TIPO, AS_TIPO, 123},
 
-    // 5.  ID' → , id ID'
-    {124, 101, NT_ID_P},
+    // 5.  ID' → , id AS_ID ID'
+    {124, 101, AS_ID, NT_ID_P},
 
     // 6.  ID' → ε
     {},
@@ -360,9 +361,9 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 25. EXPR' → ε
     {},
 
-    // 26. EST_READ (input) → input ( id ID' ) ;
+    // 26. EST_READ (input) → input ( id AS_ID ID' ) ;
     //     Nota: input es la instrucción de lectura/entrada en LIA
-    {143, 119, 101, NT_ID_P, 120, 123},
+    {143, 119, 101, AS_ID, NT_ID_P, 120, 123},
 
     // 27. EST_BREAK → break ;
     {147, 123},
@@ -388,8 +389,8 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 34. EXPR → EXPR2 EXPR''
     {NT_EXPR2, NT_EXPR_PP},
 
-    // 35. EXPR'' → || EXPR2 EXPR''
-    {118, NT_EXPR2, NT_EXPR_PP},
+    // 35. EXPR'' → || AS_17 EXPR2 AS_18 EXPR''
+    {118, AS_17, NT_EXPR2, AS_18, NT_EXPR_PP},
 
     // 36. EXPR'' → ε
     {},
@@ -397,17 +398,17 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 37. EXPR2 → EXPR3 EXPR2'
     {NT_EXPR3, NT_EXPR2_P},
 
-    // 38. EXPR2' → && EXPR3 EXPR2'
-    {117, NT_EXPR3, NT_EXPR2_P},
+    // 38. EXPR2' → && AS_15 EXPR3 AS_16 EXPR2'
+    {117, AS_15, NT_EXPR3, AS_16, NT_EXPR2_P},
 
     // 39. EXPR2' → ε
     {},
 
-    // 40. EXPR3 → EXPR3' EXPR4
-    {NT_EXPR3_P, NT_EXPR4},
+    // 40. EXPR3 → EXPR3' EXPR4 AS_14
+    {NT_EXPR3_P, NT_EXPR4, AS_14},
 
-    // 41. EXPR3' → !
-    {116},
+    // 41. EXPR3' → ! AS_13
+    {116, AS_13},
 
     // 42. EXPR3' → ε
     {},
@@ -415,8 +416,8 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 43. EXPR4 → EXPR5 EXPR4'
     {NT_EXPR5, NT_EXPR4_P},
 
-    // 44. EXPR4' → OPREL EXPR5
-    {NT_OPREL, NT_EXPR5},
+    // 44. EXPR4' → OPREL EXPR5 AS_12
+    {NT_OPREL, NT_EXPR5, AS_12},
 
     // 45. EXPR4' → ε
     {},
@@ -424,11 +425,11 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 46. EXPR5 → TERM EXPR5'
     {NT_TERM, NT_EXPR5_P},
 
-    // 47. EXPR5' → + TERM EXPR5'
-    {105, NT_TERM, NT_EXPR5_P},
+    // 47. EXPR5' → + AS_09 TERM AS_10 EXPR5'
+    {105, AS_09, NT_TERM, AS_10, NT_EXPR5_P},
 
-    // 48. EXPR5' → - TERM EXPR5'
-    {106, NT_TERM, NT_EXPR5_P},
+    // 48. EXPR5' → - AS_09 TERM AS_10 EXPR5'
+    {106, AS_09, NT_TERM, AS_10, NT_EXPR5_P},
 
     // 49. EXPR5' → ε
     {},
@@ -436,56 +437,56 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 50. TERM → FACT TERM'
     {NT_FACT, NT_TERM_P},
 
-    // 51. TERM' → * FACT TERM'
-    {107, NT_FACT, NT_TERM_P},
+    // 51. TERM' → * AS_07 FACT AS_08 TERM'
+    {107, AS_07, NT_FACT, AS_08, NT_TERM_P},
 
-    // 52. TERM' → / FACT TERM'
-    {108, NT_FACT, NT_TERM_P},
+    // 52. TERM' → / AS_07 FACT AS_08 TERM'
+    {108, AS_07, NT_FACT, AS_08, NT_TERM_P},
 
-    // 53. TERM' → % FACT TERM'
-    {128, NT_FACT, NT_TERM_P},
+    // 53. TERM' → % AS_07 FACT AS_08 TERM'
+    {128, AS_07, NT_FACT, AS_08, NT_TERM_P},
 
     // 54. TERM' → ε
     {},
 
-    // 55. FACT → id
-    {101},
+    // 55. FACT → id AS_01
+    {101, AS_01},
 
-    // 56. FACT → cteentera
-    {102},
+    // 56. FACT → cteentera AS_01
+    {102, AS_01},
 
-    // 57. FACT → ctereal
-    {103},
+    // 57. FACT → ctereal AS_01
+    {103, AS_01},
 
-    // 58. FACT → ctenotacion
-    {104},
+    // 58. FACT → ctenotacion AS_01
+    {104, AS_01},
 
-    // 59. FACT → ctecaracter
-    {125},
+    // 59. FACT → ctecaracter AS_01
+    {125, AS_01},
 
-    // 60. FACT → ctestring
-    {126},
+    // 60. FACT → ctestring AS_01
+    {126, AS_01},
 
-    // 61. FACT → ( EXPR )
-    {119, NT_EXPR, 120},
+    // 61. FACT → ( AS_05 EXPR ) AS_06
+    {119, AS_05, NT_EXPR, 120, AS_06},
 
-    // 62. OPREL → ==
-    {110},
+    // 62. OPREL → == AS_11
+    {110, AS_11},
 
-    // 63. OPREL → !=
-    {115},
+    // 63. OPREL → != AS_11
+    {115, AS_11},
 
-    // 64. OPREL → <
-    {111},
+    // 64. OPREL → < AS_11
+    {111, AS_11},
 
-    // 65. OPREL → <=
-    {112},
+    // 65. OPREL → <= AS_11
+    {112, AS_11},
 
-    // 66. OPREL → >
-    {113},
+    // 66. OPREL → > AS_11
+    {113, AS_11},
 
-    // 67. OPREL → >=
-    {114},
+    // 67. OPREL → >= AS_11
+    {114, AS_11},
 };
 
 // ── Mapeo de TokenType → columna de la tabla predictiva ──
@@ -645,6 +646,27 @@ std::string nombreSimbolo(int s) {
         case NT_TERM_P:      return "TERM'";
         case NT_FACT:        return "FACT";
         case NT_OPREL:       return "OPREL";
+        case AS_01:          return "AS_01";
+        case AS_02:          return "AS_02";
+        case AS_03:          return "AS_03";
+        case AS_04:          return "AS_04";
+        case AS_05:          return "AS_05";
+        case AS_06:          return "AS_06";
+        case AS_07:          return "AS_07";
+        case AS_08:          return "AS_08";
+        case AS_09:          return "AS_09";
+        case AS_10:          return "AS_10";
+        case AS_11:          return "AS_11";
+        case AS_12:          return "AS_12";
+        case AS_13:          return "AS_13";
+        case AS_14:          return "AS_14";
+        case AS_15:          return "AS_15";
+        case AS_16:          return "AS_16";
+        case AS_17:          return "AS_17";
+        case AS_18:          return "AS_18";
+        case AS_DECL_INI:    return "AS_DECL_INI";
+        case AS_ID:          return "AS_ID";
+        case AS_TIPO:        return "AS_TIPO";
         case OP_NEG:         return "NEG";
         case OP_FONDO_FALSO: return "(";
         case SIMBOLO_EOF:    return "$";
@@ -1078,17 +1100,345 @@ bool rellenarCuadruplo(EstadoSemantico& e, int indiceCuadruplo, const std::strin
     return true;
 }
 
+// ── Implementación de Métodos de AnalizadorSintactico ──
+
+// Función unificada para operaciones binarias (Acciones 8, 10, 12, 16, 18)
+void AnalizadorSintactico::aplicarOperacionBinaria(bool resultadoBooleano)
+{
+    if (semantica.pila_tipos.size() < 2 || semantica.pila_operandos.size() < 2 || semantica.pila_operadores.empty()) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "Error semántico interno: operandos u operadores insuficientes en la pila");
+        return;
+    }
+
+    int tipo2 = 0;
+    sacarTipo(semantica, tipo2);
+    Operando op2;
+    sacarOperando(semantica, op2);
+
+    int tipo1 = 0;
+    sacarTipo(semantica, tipo1);
+    Operando op1;
+    sacarOperando(semantica, op1);
+
+    int oper = 0;
+    sacarOperador(semantica, oper);
+
+    int tipoRes = AccionSemantica(tipo1, tipo2, oper);
+    int numTemp = obtenerTemporal(semantica);
+    std::string nomTemp = nombreTemporal(numTemp);
+
+    if (tipoRes != TIPO_ERROR) {
+        if (resultadoBooleano)
+            tipoRes = TIPO_BOOL;
+
+        generarCuadruplo(semantica, nombreOperador(oper), op1.nombre, op2.nombre, nomTemp);
+        empujarOperando(semantica, {nomTemp, -1, CLASE_TEMPORAL});
+        empujarTipo(semantica, tipoRes);
+    } else {
+        if (tipo1 != TIPO_ERROR && tipo2 != TIPO_ERROR) {
+            marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna, "Tipos incompatibles");
+        }
+        generarCuadruplo(semantica, nombreOperador(oper), op1.nombre, op2.nombre, nomTemp);
+        empujarOperando(semantica, {nomTemp, -1, CLASE_TEMPORAL});
+        empujarTipo(semantica, TIPO_ERROR);
+    }
+
+    // Regresar al Avail los operandos que eran temporales
+    if (op1.clase == CLASE_TEMPORAL) {
+        if (op1.nombre.size() > 1 && op1.nombre[0] == 'T') {
+            try {
+                int n = std::stoi(op1.nombre.substr(1));
+                regresarTemporal(semantica, n);
+            } catch (...) {}
+        }
+    }
+    if (op2.clase == CLASE_TEMPORAL) {
+        if (op2.nombre.size() > 1 && op2.nombre[0] == 'T') {
+            try {
+                int n = std::stoi(op2.nombre.substr(1));
+                regresarTemporal(semantica, n);
+            } catch (...) {}
+        }
+    }
+}
+
+// Acciones de negación unaria (2, 3, 4)
+void AnalizadorSintactico::accion_02()
+{
+    empujarOperador(semantica, OP_NEG);
+}
+
+void AnalizadorSintactico::accion_03()
+{
+    if (semantica.pila_operadores.empty() || semantica.pila_tipos.empty() || semantica.pila_operandos.empty()) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "Error semántico interno: pila vacía en negación unaria (AS_03)");
+        return;
+    }
+
+    if (semantica.pila_operadores.back() == OP_NEG) {
+        int tipo1 = semantica.pila_tipos.back();
+        if (tipo1 == TIPO_INT || tipo1 == TIPO_FLOAT || tipo1 == TIPO_NOTACION) {
+            int t = 0;
+            sacarTipo(semantica, t);
+            Operando id1;
+            sacarOperando(semantica, id1);
+            int op = 0;
+            sacarOperador(semantica, op);
+
+            if (!id1.nombre.empty() && id1.nombre[0] == '-') {
+                id1.nombre = id1.nombre.substr(1);
+            } else {
+                id1.nombre = "-" + id1.nombre;
+            }
+
+            empujarOperando(semantica, id1);
+            empujarTipo(semantica, tipo1);
+        }
+    }
+}
+
+void AnalizadorSintactico::accion_04()
+{
+    if (semantica.pila_operadores.empty() || semantica.pila_tipos.empty() || semantica.pila_operandos.empty()) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "Error semántico interno: pila vacía en negación unaria (AS_04)");
+        return;
+    }
+
+    if (semantica.pila_operadores.back() == OP_NEG) {
+        int tipo1 = semantica.pila_tipos.back();
+        if (tipo1 == TIPO_CHAR || tipo1 == TIPO_STRING) {
+            int t = 0;
+            sacarTipo(semantica, t);
+            Operando id1;
+            sacarOperando(semantica, id1);
+            int op = 0;
+            sacarOperador(semantica, op);
+
+            marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                                 "no se pueden negar char o string");
+
+            empujarOperando(semantica, id1);
+            empujarTipo(semantica, tipo1);
+        }
+    }
+}
+
+// Despachador de acciones semánticas integradas en el flujo LL(1)
+void AnalizadorSintactico::ejecutarAccion(int accion)
+{
+    switch (accion) {
+        // Auxiliares de tabla de símbolos
+        case AS_DECL_INI:
+            enDeclaracion = true;
+            variablesPendientes.clear();
+            break;
+
+        case AS_ID:
+            if (enDeclaracion) {
+                variablesPendientes.push_back(ultimoConsumido.lexema);
+            } else {
+                if (buscarSimbolo(semantica, ultimoConsumido.lexema) == -1) {
+                    marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                                         "variable no declarada: " + ultimoConsumido.lexema);
+                }
+            }
+            break;
+
+        case AS_TIPO: {
+            int tipoVar = tipoDeToken(static_cast<int>(ultimoConsumido.tipo));
+            for (const std::string& var : variablesPendientes) {
+                if (buscarSimbolo(semantica, var) != -1) {
+                    marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                                         "variable ya declarada: " + var);
+                } else {
+                    insertarSimbolo(semantica, var, tipoVar);
+                }
+            }
+            variablesPendientes.clear();
+            enDeclaracion = false;
+            break;
+        }
+
+        // Acción 1: Push operando (variable o constante) y su tipo
+        case AS_01: {
+            if (ultimoConsumido.tipo == identificador) {
+                int dir = buscarSimbolo(semantica, ultimoConsumido.lexema);
+                if (dir != -1) {
+                    int tipo = semantica.tabla_simbolos[dir].tipo;
+                    empujarOperando(semantica, {ultimoConsumido.lexema, dir, CLASE_VARIABLE});
+                    empujarTipo(semantica, tipo);
+                } else {
+                    marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                                         "variable no declarada: " + ultimoConsumido.lexema);
+                    empujarOperando(semantica, {ultimoConsumido.lexema, -1, CLASE_VARIABLE});
+                    empujarTipo(semantica, TIPO_ERROR);
+                }
+            } else {
+                int tipoCte = tipoDeToken(static_cast<int>(ultimoConsumido.tipo));
+                int dir = insertarConstante(semantica, ultimoConsumido.lexema, tipoCte);
+                empujarOperando(semantica, {ultimoConsumido.lexema, dir, CLASE_CONSTANTE});
+                empujarTipo(semantica, tipoCte);
+            }
+            break;
+        }
+
+        // Acciones 2, 3, 4: Negación unaria
+        case AS_02: accion_02(); break;
+        case AS_03: accion_03(); break;
+        case AS_04: accion_04(); break;
+
+        // Acciones 5 y 6: Fondo falso "("
+        case AS_05:
+            empujarOperador(semantica, OP_FONDO_FALSO);
+            break;
+
+        case AS_06:
+            if (!semantica.pila_operadores.empty() && semantica.pila_operadores.back() == OP_FONDO_FALSO) {
+                int opDesc = 0;
+                sacarOperador(semantica, opDesc);
+            } else {
+                marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                                     "Error semántico interno: no se encontró fondo falso '('");
+            }
+            break;
+
+        // Acciones 7 y 8: Multiplicación / División / Módulo
+        case AS_07:
+            empujarOperador(semantica, static_cast<int>(ultimoConsumido.tipo));
+            break;
+
+        case AS_08:
+            if (!semantica.pila_operadores.empty()) {
+                int op = semantica.pila_operadores.back();
+                if (op == multiplicacion || op == division || op == modulus) {
+                    aplicarOperacionBinaria(false);
+                }
+            }
+            break;
+
+        // Acciones 9 y 10: Suma / Resta
+        case AS_09:
+            empujarOperador(semantica, static_cast<int>(ultimoConsumido.tipo));
+            break;
+
+        case AS_10:
+            if (!semantica.pila_operadores.empty()) {
+                int op = semantica.pila_operadores.back();
+                if (op == suma || op == resta) {
+                    aplicarOperacionBinaria(false);
+                }
+            }
+            break;
+
+        // Acciones 11 y 12: Relacionales
+        case AS_11:
+            empujarOperador(semantica, static_cast<int>(ultimoConsumido.tipo));
+            break;
+
+        case AS_12:
+            if (!semantica.pila_operadores.empty()) {
+                int op = semantica.pila_operadores.back();
+                if (op == igual || op == diferente || op == menor || op == menorigual || op == mayor || op == mayorigual) {
+                    aplicarOperacionBinaria(true);
+                }
+            }
+            break;
+
+        // Acciones 13 y 14: Negación lógica !
+        case AS_13:
+            empujarOperador(semantica, op_not);
+            break;
+
+        case AS_14:
+            if (!semantica.pila_operadores.empty() && semantica.pila_operadores.back() == op_not) {
+                if (semantica.pila_tipos.empty() || semantica.pila_operandos.empty()) {
+                    marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                                         "Error semántico interno: pila vacía al aplicar operador not");
+                    break;
+                }
+
+                int tipo = 0;
+                sacarTipo(semantica, tipo);
+                Operando id1;
+                sacarOperando(semantica, id1);
+                int oper = 0;
+                sacarOperador(semantica, oper);
+
+                int tipoRes = AccionSemanticaUnica(tipo, op_not);
+                int numTemp = obtenerTemporal(semantica);
+                std::string nomTemp = nombreTemporal(numTemp);
+
+                if (tipoRes != TIPO_ERROR) {
+                    generarCuadruplo(semantica, "!", id1.nombre, "--", nomTemp);
+                    empujarOperando(semantica, {nomTemp, -1, CLASE_TEMPORAL});
+                    empujarTipo(semantica, tipoRes);
+                } else {
+                    if (tipo != TIPO_ERROR) {
+                        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                                             "tipo incompatible con not");
+                    }
+                    generarCuadruplo(semantica, "!", id1.nombre, "--", nomTemp);
+                    empujarOperando(semantica, {nomTemp, -1, CLASE_TEMPORAL});
+                    empujarTipo(semantica, TIPO_ERROR);
+                }
+
+                if (id1.clase == CLASE_TEMPORAL) {
+                    if (id1.nombre.size() > 1 && id1.nombre[0] == 'T') {
+                        try {
+                            int n = std::stoi(id1.nombre.substr(1));
+                            regresarTemporal(semantica, n);
+                        } catch (...) {}
+                    }
+                }
+            }
+            break;
+
+        // Acciones 15 y 16: Conjunción &&
+        case AS_15:
+            empujarOperador(semantica, op_and);
+            break;
+
+        case AS_16:
+            if (!semantica.pila_operadores.empty() && semantica.pila_operadores.back() == op_and) {
+                aplicarOperacionBinaria(true);
+            }
+            break;
+
+        // Acciones 17 y 18: Disyunción ||
+        case AS_17:
+            empujarOperador(semantica, op_or);
+            break;
+
+        case AS_18:
+            if (!semantica.pila_operadores.empty() && semantica.pila_operadores.back() == op_or) {
+                aplicarOperacionBinaria(true);
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// SECCIÓN 4 — ALGORITMO PRINCIPAL DEL ANALIZADOR SINTÁCTICO (LL1)
+// SECCIÓN 4 — ALGORITMO PRINCIPAL DEL ANALIZADOR SINTÁCTICO Y SEMÁNTICO (LL1)
 // ─────────────────────────────────────────────────────────────────────────────
 
 void AnalizadorSintactico::analizar(const std::string& codigo)
 {
     errores.clear();
     exitoso = true;
+    exitosoSemantico = true;
 
     // Inicialización del estado semántico limpio para este análisis
     reiniciarEstadoSemantico(semantica);
+
+    ultimoConsumido = {};
+    enDeclaracion = false;
+    variablesPendientes.clear();
 
     AnalizadorLexicoIncremental lexico(codigo);
 
@@ -1118,12 +1468,23 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
             }
         }
 
-        // ── Caso 1: terminal ──
-        bool esTerminal = (tope < 201 || tope > 231) && (tope != SIMBOLO_EOF);
+        // ── Caso 1: acción semántica (301..323) ──
+        if (tope >= 301 && tope <= 323) {
+            pila.pop();
+            // Si ya hubo error sintáctico, descartar acciones para no operar con pilas inconsistentes
+            if (exitoso) {
+                ejecutarAccion(tope);
+            }
+            continue;
+        }
+
+        // ── Caso 2: terminal ──
+        bool esTerminal = (tope < 201 || (tope > 231 && tope < 301) || tope > 323) && (tope != SIMBOLO_EOF);
 
         if (esTerminal) {
             if (tope == static_cast<int>(actual.tipo)) {
-                // Coinciden → consumir
+                // Coinciden → guardar último consumido y avanzar
+                ultimoConsumido = actual;
                 pila.pop();
                 actual = lexico.siguienteToken();
             } else {
@@ -1141,7 +1502,7 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
             }
 
         } else if (tope >= 201 && tope <= 231) {
-            // ── Caso 2: no terminal → consultar tabla ──
+            // ── Caso 3: no terminal → consultar tabla ──
             int fil = ntAFila(tope);
             int col = tokenAColumna(static_cast<int>(actual.tipo));
             int prod = (col != -1) ? TABLA[fil][col] : -1;
@@ -1169,9 +1530,11 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
             }
         }
     }
+
+    exitosoSemantico = semantica.errores.empty();
 }
 
-
+/*
 std::string leerArchivo(const std::string& nombreArchivo)
 {
     std::ifstream archivo(nombreArchivo);
@@ -1185,7 +1548,7 @@ std::string leerArchivo(const std::string& nombreArchivo)
     archivo.close();
     return contenido;
 }
-/*
+
 int main()
 {
     std::string nombreArchivo = "C:/Users/diego/OneDrive/Desktop/LIA/Lenguaje.txt";

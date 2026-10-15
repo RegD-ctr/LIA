@@ -4,6 +4,9 @@
 #include <QMainWindow>
 #include <QTextEdit>
 #include <QPushButton>
+#include <QTabWidget>
+#include <QTableWidget>
+#include <QHeaderView>
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -18,11 +21,28 @@ private slots:
     void onAnalizar();
 
 private:
+    // Editor principal de código
     QTextEdit *editorCodigo;
+
+    // Componente de Pestañas (Tabbed Pane)
+    QTabWidget *tabPanel;
+
+    // Pestaña 1: Consolas de Análisis
     QTextEdit *salidaTokens;
     QTextEdit *salidaSintaxis;
     QTextEdit *salidaErrores;
 
+    // Pestaña 2: Tablas de Símbolos y Constantes
+    QTableWidget *tablaSimbolos;
+    QTableWidget *tablaConstantes;
+
+    // Pestaña 3: Cuádruplos
+    QTableWidget *tablaCuadruplos;
+
+    // Pestaña 4: Pilas del Analizador Semántico
+    QTableWidget *tablaPilas;
+
+    // Botones de la interfaz
     QPushButton *btnAbrir;
     QPushButton *btnGuardar;
     QPushButton *btnLimpiar;
@@ -30,4 +50,4 @@ private:
     QPushButton *btnSalir;
 };
 
-#endif
+#endif // MAINWINDOW_H

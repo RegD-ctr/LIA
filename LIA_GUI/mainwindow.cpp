@@ -8,59 +8,106 @@
 #include <QFile>
 #include "../LIA/LIA.h"
 
-// mingw32-make linea para compilar el proyecto.
-//.\release\LIA_GUI.exe linea de la terminal para ejecutar la interfaz
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+    setWindowTitle("-- LIA - Entorno de Compilación y Traducción --");
+    setMinimumSize(1024, 700);
+    
+    // 1. Agrandar la ventana a pantalla completa al iniciar
+    showMaximized();
 
-// se inicializa la ventana con titulo y el tamaño
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
-{
-    setWindowTitle("--LIA--");
-    setMinimumSize(900, 600);
-
-    // widget central que contiene todo
+    // Widget central
     QWidget *central = new QWidget(this);
     setCentralWidget(central);
 
-    // area donde se muestra el codigo a analizar
+    // Editor de código fuente
     editorCodigo = new QTextEdit();
-    editorCodigo->setPlaceholderText("Abre un archivo o escribe código LIA aquí...");
-    editorCodigo->setFont(QFont("Courier New", 10));
-    editorCodigo->setAutoFormatting(QTextEdit::AutoNone);
+    editorCodigo->setPlaceholderText("Escribe o abre un archivo de código LIA aquí...");
+    editorCodigo->setFont(QFont("Courier New", 11));
 
-    // Paneles de salida de los tokens
+    // -------------------------------------------------------------------------
+    // CREACIÓN DEL PANEL DE PESTAÑAS (QTabWidget)
+    // -------------------------------------------------------------------------
+    tabPanel = new QTabWidget();
+
+    // --- PESTAÑA 1: CONSOLAS DE ANÁLISIS ---
+    QWidget *tabAnalisis = new QWidget();
+    QVBoxLayout *layoutAnalisis = new QVBoxLayout(tabAnalisis);
+
     salidaTokens = new QTextEdit();
-    salidaTokens->setReadOnly(true); // setReadOnly(true) evita que se editen en la ejecucion
-    salidaTokens->setPlaceholderText("Tokens...");
+    salidaTokens->setReadOnly(true);
+    salidaTokens->setPlaceholderText("Tokens identificados...");
 
-    // panel de salida de la sintaxis
     salidaSintaxis = new QTextEdit();
     salidaSintaxis->setReadOnly(true);
-    salidaSintaxis->setPlaceholderText("Sintaxis...");
+    salidaSintaxis->setPlaceholderText("Resultado del análisis sintáctico...");
 
-    // panel de salida de los errores
     salidaErrores = new QTextEdit();
     salidaErrores->setReadOnly(true);
-    salidaErrores->setPlaceholderText("Errores...");
+    salidaErrores->setPlaceholderText("Errores encontrados...");
 
-    // Panel derecho: los tres QTextEdit apilados
-    QWidget *panelDerecho = new QWidget();
-    QVBoxLayout *layoutDerecho = new QVBoxLayout(panelDerecho);
-    layoutDerecho->addWidget(salidaTokens);
-    layoutDerecho->addWidget(salidaSintaxis);
-    layoutDerecho->addWidget(salidaErrores);
+    layoutAnalisis->addWidget(salidaTokens);
+    layoutAnalisis->addWidget(salidaSintaxis);
+    layoutAnalisis->addWidget(salidaErrores);
 
-    // Splitter horizontal: para el area del editor y los paneles de la derecha
+    // --- PESTAÑA 2: TABLA DE SÍMBOLOS Y CONSTANTES ---
+    QWidget *tabSimbolosConstantes = new QWidget();
+    QVBoxLayout *layoutSimbolos = new QVBoxLayout(tabSimbolosConstantes);
+
+    tablaSimbolos = new QTableWidget();
+    tablaSimbolos->setColumnCount(5);
+    tablaSimbolos->setHorizontalHeaderLabels({"NID", "VARIABLE", "TIPO", "RAM", "AP"});
+    tablaSimbolos->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    tablaConstantes = new QTableWidget();
+    tablaConstantes->setColumnCount(3);
+    tablaConstantes->setHorizontalHeaderLabels({"NCTE", "NOMBRE", "TIPO"});
+    tablaConstantes->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    layoutSimbolos->addWidget(tablaSimbolos);
+    layoutSimbolos->addWidget(tablaConstantes);
+
+    // --- PESTAÑA 3: CUÁDRUPLOS ---
+    QWidget *tabCuadruplos = new QWidget();
+    QVBoxLayout *layoutCuadruplos = new QVBoxLayout(tabCuadruplos);
+
+    tablaCuadruplos = new QTableWidget();
+    tablaCuadruplos->setColumnCount(5);
+    tablaCuadruplos->setHorizontalHeaderLabels({"Num", "COPER", "OP1", "OP2", "RES"});
+    tablaCuadruplos->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    layoutCuadruplos->addWidget(tablaCuadruplos);
+
+    // --- PESTAÑA 4: ESTADO DE PILAS ---
+    QWidget *tabPilas = new QWidget();
+    QVBoxLayout *layoutPilas = new QVBoxLayout(tabPilas);
+
+    tablaPilas = new QTableWidget();
+    tablaPilas->setColumnCount(5);
+    tablaPilas->setHorizontalHeaderLabels({"OPERADORES", "OPERANDOS", "TIPOS", "SALTOS", "AVAILS"});
+    tablaPilas->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    layoutPilas->addWidget(tablaPilas);
+
+    // AGREGAR TODAS LAS PESTAÑAS AL TAB PANEL
+    tabPanel->addTab(tabAnalisis, "Análisis Léxico/Sintáctico");
+    tabPanel->addTab(tabSimbolosConstantes, "Tabla Símbolos/Constantes");
+    tabPanel->addTab(tabCuadruplos, "Cuádruplos");
+    tabPanel->addTab(tabPilas, "Pilas Semánticas");
+
+    // -------------------------------------------------------------------------
+    // SPLITTER Y LAYOUT GENERAL
+    // -------------------------------------------------------------------------
     QSplitter *splitter = new QSplitter(Qt::Horizontal);
     splitter->addWidget(editorCodigo);
-    splitter->addWidget(panelDerecho);
-    splitter->setStretchFactor(0, 2); // editor ocupa el doble
+    splitter->addWidget(tabPanel);
+    splitter->setStretchFactor(0, 1); // Distribución proporcional 50/50
     splitter->setStretchFactor(1, 1);
 
-    // Botones
+    // Botones de acción
     btnAbrir = new QPushButton("Abrir");
     btnGuardar = new QPushButton("Guardar");
     btnLimpiar = new QPushButton("Limpiar");
-    btnAnalizar = new QPushButton("Analizar");
+    btnAnalizar = new QPushButton("Analizar y Traducir");
     btnSalir = new QPushButton("Salir");
 
     QHBoxLayout *layoutBotones = new QHBoxLayout();
@@ -68,17 +115,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     layoutBotones->addWidget(btnGuardar);
     layoutBotones->addWidget(btnLimpiar);
     layoutBotones->addWidget(btnAnalizar);
-    layoutBotones->addStretch(); // empuja el botón Salir a la derecha
+    layoutBotones->addStretch();
     layoutBotones->addWidget(btnSalir);
 
-    // Layout principal
     QVBoxLayout *layoutPrincipal = new QVBoxLayout(central);
     layoutPrincipal->addWidget(splitter);
     layoutPrincipal->addLayout(layoutBotones);
 
-    // Conectar botones a sus funciones
-    /*connect es el sistema de señales y slots de Qt, le dice:
-    "cuando se haga clic en este botón, llama a esta función".*/
+    // Conexión de eventos
     connect(btnAbrir, &QPushButton::clicked, this, &MainWindow::onAbrir);
     connect(btnGuardar, &QPushButton::clicked, this, &MainWindow::onGuardar);
     connect(btnLimpiar, &QPushButton::clicked, this, &MainWindow::onLimpiar);
@@ -118,12 +162,17 @@ void MainWindow::onGuardar()
     }
 }
 
-void MainWindow::onLimpiar()
-{
+// Limpiar todas las vistas y tablas
+void MainWindow::onLimpiar() {
     editorCodigo->clear();
     salidaTokens->clear();
     salidaSintaxis->clear();
     salidaErrores->clear();
+
+    tablaSimbolos->setRowCount(0);
+    tablaConstantes->setRowCount(0);
+    tablaCuadruplos->setRowCount(0);
+    tablaPilas->setRowCount(0);
 }
 
 // funcion que convierte el numero del tipo a su nombre real
@@ -260,6 +309,7 @@ void MainWindow::onAnalizar()
         return;
     }
 
+    // 1. Análisis Léxico
     std::vector<token> tokens = AnalizarLexico(codigo);
 
     salidaTokens->clear();
@@ -283,18 +333,18 @@ void MainWindow::onAnalizar()
             textoTokens += linea;
     }
 
-    // Análisis sintáctico
+    // 2. Análisis Sintáctico y Semántico
     AnalizadorSintactico sintactico;
     sintactico.analizar(codigo);
 
     QString textoSintaxis = "";
     if (sintactico.exitoso)
     {
-        textoSintaxis = "✓ Análisis sintáctico correcto.";
+        textoSintaxis = "Análisis sintáctico y semántico correcto.";
     }
     else
     {
-        textoSintaxis = "✗ Errores sintácticos:\n\n";
+        textoSintaxis = "Errores sintácticos / semánticos:\n\n";
         for (const auto &err : sintactico.errores)
         {
             QString lineaErr = QString("Fila %1, Col %2: %3\n")
@@ -302,11 +352,91 @@ void MainWindow::onAnalizar()
                                    .arg(err.columna)
                                    .arg(QString::fromStdString(err.mensaje));
             textoSintaxis += lineaErr;
-            textoErrores += lineaErr; // también al panel de errores
+            textoErrores += lineaErr; // También al panel de errores
         }
     }
 
     salidaTokens->setText(textoTokens.isEmpty() ? "Sin tokens." : textoTokens);
     salidaSintaxis->setText(textoSintaxis);
     salidaErrores->setText(textoErrores.isEmpty() ? "Sin errores." : textoErrores);
+
+
+    // --- A) TABLA DE SÍMBOLOS (Direcciones e Índices desde 1) ---
+    tablaSimbolos->setRowCount(0);
+    for (size_t i = 0; i < sintactico.semantica.tabla_simbolos.size(); ++i)
+    {
+        const auto &s = sintactico.semantica.tabla_simbolos[i];
+        int row = tablaSimbolos->rowCount();
+        tablaSimbolos->insertRow(row);
+        tablaSimbolos->setItem(row, 0, new QTableWidgetItem(QString::number(s.direccion + 1))); // NID / Dir desde 1
+        tablaSimbolos->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(s.nombre)));
+        tablaSimbolos->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(nombreTipoDato(s.tipo))));
+        tablaSimbolos->setItem(row, 3, new QTableWidgetItem("RAM"));
+        tablaSimbolos->setItem(row, 4, new QTableWidgetItem(QString::number(i + 1)));           // AP desde 1
+    }
+
+    // --- B) TABLA DE CONSTANTES (Direcciones desde 1) ---
+    tablaConstantes->setRowCount(0);
+    for (size_t i = 0; i < sintactico.semantica.tabla_constantes.size(); ++i)
+    {
+        const auto &c = sintactico.semantica.tabla_constantes[i];
+        int row = tablaConstantes->rowCount();
+        tablaConstantes->insertRow(row);
+        tablaConstantes->setItem(row, 0, new QTableWidgetItem(QString::number(c.direccion + 1))); // NCTE desde 1
+        tablaConstantes->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(c.valor)));
+        tablaConstantes->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(nombreTipoDato(c.tipo))));
+    }
+
+    // --- C) TABLA DE CUÁDRUPLOS (Numeración desde 1) ---
+    tablaCuadruplos->setRowCount(0);
+    for (size_t i = 0; i < sintactico.semantica.tabla_cuadruplos.size(); ++i)
+    {
+        const auto &q = sintactico.semantica.tabla_cuadruplos[i];
+        int row = tablaCuadruplos->rowCount();
+        tablaCuadruplos->insertRow(row);
+        tablaCuadruplos->setItem(row, 0, new QTableWidgetItem(QString::number(i + 1)));          // # Cuádruplo desde 1
+        tablaCuadruplos->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(q.oper)));
+        tablaCuadruplos->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(q.op1)));
+        tablaCuadruplos->setItem(row, 3, new QTableWidgetItem(QString::fromStdString(q.op2)));
+        tablaCuadruplos->setItem(row, 4, new QTableWidgetItem(QString::fromStdString(q.resultado)));
+    }
+
+    // --- D) ESTADO DE LAS PILAS SEMÁNTICAS ---
+    tablaPilas->setRowCount(0);
+    size_t maxFilas = std::max({
+        sintactico.semantica.pila_operadores.size(),
+        sintactico.semantica.pila_operandos.size(),
+        sintactico.semantica.pila_tipos.size(),
+        sintactico.semantica.pila_saltos.size(),
+        sintactico.semantica.pila_avails.size()
+    });
+
+    for (size_t i = 0; i < maxFilas; ++i)
+    {
+        int row = tablaPilas->rowCount();
+        tablaPilas->insertRow(row);
+
+        // Se usa nombreOperador() para convertir el código numérico a símbolo (+)
+        QString oper  = (i < sintactico.semantica.pila_operadores.size()) 
+                          ? QString::fromStdString(nombreOperador(sintactico.semantica.pila_operadores[i])) 
+                          : "";
+        QString opnd  = (i < sintactico.semantica.pila_operandos.size())  
+                          ? QString::fromStdString(sintactico.semantica.pila_operandos[i].nombre) 
+                          : "";
+        QString tipo  = (i < sintactico.semantica.pila_tipos.size())      
+                          ? QString::fromStdString(nombreTipoDato(sintactico.semantica.pila_tipos[i])) 
+                          : "";
+        QString salto = (i < sintactico.semantica.pila_saltos.size())     
+                          ? QString::number(sintactico.semantica.pila_saltos[i]) 
+                          : "";
+        QString avail = (i < sintactico.semantica.pila_avails.size())     
+                          ? QString::fromStdString(nombreTemporal(sintactico.semantica.pila_avails[i])) 
+                          : "";
+
+        tablaPilas->setItem(row, 0, new QTableWidgetItem(oper));
+        tablaPilas->setItem(row, 1, new QTableWidgetItem(opnd));
+        tablaPilas->setItem(row, 2, new QTableWidgetItem(tipo));
+        tablaPilas->setItem(row, 3, new QTableWidgetItem(salto));
+        tablaPilas->setItem(row, 4, new QTableWidgetItem(avail));
+    }
 }

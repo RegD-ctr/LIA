@@ -309,12 +309,13 @@ void MainWindow::onAnalizar()
         return;
     }
 
-    // 1. Análisis Léxico
-    std::vector<token> tokens = AnalizarLexico(codigo);
-
+    // Limpiar paneles de salida
     salidaTokens->clear();
     salidaSintaxis->clear();
     salidaErrores->clear();
+
+    // 1. Análisis Léxico
+    std::vector<token> tokens = AnalizarLexico(codigo);
 
     QString textoTokens = "";
     QString textoErrores = "";
@@ -328,7 +329,7 @@ void MainWindow::onAnalizar()
                             .arg(t.columna);
 
         if (t.tipo >= 500)
-            textoErrores += linea;
+            textoErrores += linea; // Error léxico 
         else
             textoTokens += linea;
     }
@@ -337,29 +338,37 @@ void MainWindow::onAnalizar()
     AnalizadorSintactico sintactico;
     sintactico.analizar(codigo);
 
+    // Panel de Sintaxis 
     QString textoSintaxis = "";
     if (sintactico.exitoso)
     {
-        textoSintaxis = "Análisis sintáctico y semántico correcto.";
+        textoSintaxis = "Análisis sintáctico correcto.";
     }
     else
     {
-        textoSintaxis = "Errores sintácticos / semánticos:\n\n";
+        textoSintaxis = "Errores sintácticos:\n\n";
         for (const auto &err : sintactico.errores)
         {
-            QString lineaErr = QString("Fila %1, Col %2: %3\n")
-                                   .arg(err.fila)
-                                   .arg(err.columna)
-                                   .arg(QString::fromStdString(err.mensaje));
-            textoSintaxis += lineaErr;
-            textoErrores += lineaErr; // También al panel de errores
+            textoSintaxis += QString("Fila %1, Col %2: %3\n")
+                                 .arg(err.fila)
+                                 .arg(err.columna)
+                                 .arg(QString::fromStdString(err.mensaje));
         }
     }
 
+    // 3. Errores Semánticos 
+    for (const auto &err : sintactico.semantica.errores)
+    {
+        textoErrores += QString("Fila %1, Col %2: %3\n")
+                            .arg(err.fila)
+                            .arg(err.columna)
+                            .arg(QString::fromStdString(err.mensaje));
+    }
+
+    // Mostrar los resultados finales en las 3 ventanas
     salidaTokens->setText(textoTokens.isEmpty() ? "Sin tokens." : textoTokens);
     salidaSintaxis->setText(textoSintaxis);
     salidaErrores->setText(textoErrores.isEmpty() ? "Sin errores." : textoErrores);
-
 
     // --- A) TABLA DE SÍMBOLOS (Direcciones e Índices desde 1) ---
     tablaSimbolos->setRowCount(0);

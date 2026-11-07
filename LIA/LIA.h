@@ -183,6 +183,22 @@ const int OP_FONDO_FALSO = 901;   // Marca de paréntesis '('
 // Base de numeración de cuádruplos (1-based para saltos)
 const int BASE_CUADRUPLOS = 1;
 
+// Grupos de operadores binarios (tercera dimensión del cubo)
+const int GRP_ARIT = 0;   // +  -  *
+const int GRP_DIV  = 1;   // /
+const int GRP_MOD  = 2;   // %
+const int GRP_REL  = 3;   // ==  !=  <  <=  >  >=
+const int GRP_LOG  = 4;   // &&  ||
+const int NUM_GRUPOS = 5;
+ 
+// Operadores unarios (segunda dimensión de la tabla unaria)
+const int UN_NOT = 0;     // !
+const int UN_NEG = 1;     // -  (negación aritmética)
+const int NUM_UNARIOS = 2;
+ 
+// Número de tipos de datos (TIPO_ERROR .. TIPO_BOOL)
+const int NUM_TIPOS = 7;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ESTRUCTURAS DEL ANALIZADOR SEMÁNTICO
 // ─────────────────────────────────────────────────────────────────────────────
@@ -350,9 +366,7 @@ int tipoDeToken(int tipoToken);
 
 // Cubo Semántico
 int AccionSemantica(int tipo1, int tipo2, int operador);
-int AccionSemantica(int tipo1, int tipo2, const std::string& oper);
 int AccionSemanticaUnica(int tipo, int operador);
-int AccionSemanticaUnica(int tipo, const std::string& oper);
 
 // Tablas de Símbolos y Constantes
 int insertarConstante(EstadoSemantico& e, const std::string& lexema, int tipo);

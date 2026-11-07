@@ -146,6 +146,7 @@ const int AS_15 = 315;
 const int AS_16 = 316;
 const int AS_17 = 317;
 const int AS_18 = 318;
+const int AS_19 = 319;
 
 // Auxiliares de tabla de símbolos
 const int AS_DECL_INI = 321;
@@ -322,6 +323,7 @@ struct AnalizadorSintactico {
     void accion_02();
     void accion_03();
     void accion_04();
+    void accion_19();
 
     void analizar(const std::string& codigo);
 };

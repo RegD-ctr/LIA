@@ -1,1 +1,28 @@
+# Documentos (el que ya tenías)
 *.pdf
+
+# Archivos de compilación y ejecutables (Windows/C++)
+*.o
+*.obj
+*.exe
+*.dll
+*.lib
+
+# Carpetas de compilación de Qt
+release/
+debug/
+build/
+build-*/
+
+# Archivos generados automáticamente por Qt (qmake/moc/uic)
+Makefile
+Makefile.*
+*.stash
+*.user
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+
+# Archivos temporales del sistema operativo
+Thumbs.db
+.DS_Store

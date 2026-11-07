@@ -912,115 +912,143 @@ int tipoDeToken(int tipoToken)
 }
 
 // ── Cubo Semántico ──
+#define ERR TIPO_ERROR
+#define INT TIPO_INT
+#define FLT TIPO_FLOAT
+#define NOT TIPO_NOTACION   // notación científica: se trata como real
+#define CHR TIPO_CHAR
+#define STR TIPO_STRING
+#define BOL TIPO_BOOL
+
+// CUBO[tipo1][tipo2][grupo] = tipo resultado (ERR = error semántico)
+//   columnas:  GRP_ARIT (grupo aritmetico)  GRP_DIV(grupo division)  GRP_MOD(modulus)  
+//              GRP_REL(relacional)  GRP_LOG(logicos)
+const int CUBO[NUM_TIPOS][NUM_TIPOS][NUM_GRUPOS] = {
+    // ── op1 = ERR ──
+    {
+        /* ERR */ { ERR, ERR, ERR, ERR, ERR },
+        /* INT */ { ERR, ERR, ERR, ERR, ERR },
+        /* FLT */ { ERR, ERR, ERR, ERR, ERR },
+        /* NOT */ { ERR, ERR, ERR, ERR, ERR },
+        /* CHR */ { ERR, ERR, ERR, ERR, ERR },
+        /* STR */ { ERR, ERR, ERR, ERR, ERR },
+        /* BOL */ { ERR, ERR, ERR, ERR, ERR },
+    },
+    // ── op1 = INT ──
+    {
+        /* ERR */ { ERR, ERR, ERR, ERR, ERR },
+        /* INT */ { INT, FLT, INT, BOL, ERR },
+        /* FLT */ { FLT, FLT, ERR, BOL, ERR },
+        /* NOT */ { FLT, FLT, ERR, BOL, ERR },
+        /* CHR */ { ERR, ERR, ERR, ERR, ERR },
+        /* STR */ { ERR, ERR, ERR, ERR, ERR },
+        /* BOL */ { ERR, ERR, ERR, ERR, ERR },
+    },
+    // ── op1 = FLT ──
+    {
+        /* ERR */ { ERR, ERR, ERR, ERR, ERR },
+        /* INT */ { FLT, FLT, ERR, BOL, ERR },
+        /* FLT */ { FLT, FLT, ERR, BOL, ERR },
+        /* NOT */ { FLT, FLT, ERR, BOL, ERR },
+        /* CHR */ { ERR, ERR, ERR, ERR, ERR },
+        /* STR */ { ERR, ERR, ERR, ERR, ERR },
+        /* BOL */ { ERR, ERR, ERR, ERR, ERR },
+    },
+    // ── op1 = NOT ──
+    {
+        /* ERR */ { ERR, ERR, ERR, ERR, ERR },
+        /* INT */ { FLT, FLT, ERR, BOL, ERR },
+        /* FLT */ { FLT, FLT, ERR, BOL, ERR },
+        /* NOT */ { FLT, FLT, ERR, BOL, ERR },
+        /* CHR */ { ERR, ERR, ERR, ERR, ERR },
+        /* STR */ { ERR, ERR, ERR, ERR, ERR },
+        /* BOL */ { ERR, ERR, ERR, ERR, ERR },
+    },
+    // ── op1 = CHR ──
+    {
+        /* ERR */ { ERR, ERR, ERR, ERR, ERR },
+        /* INT */ { ERR, ERR, ERR, ERR, ERR },
+        /* FLT */ { ERR, ERR, ERR, ERR, ERR },
+        /* NOT */ { ERR, ERR, ERR, ERR, ERR },
+        /* CHR */ { ERR, ERR, ERR, BOL, ERR },
+        /* STR */ { ERR, ERR, ERR, BOL, ERR },
+        /* BOL */ { ERR, ERR, ERR, ERR, ERR },
+    },
+    // ── op1 = STR ──
+    {
+        /* ERR */ { ERR, ERR, ERR, ERR, ERR },
+        /* INT */ { ERR, ERR, ERR, ERR, ERR },
+        /* FLT */ { ERR, ERR, ERR, ERR, ERR },
+        /* NOT */ { ERR, ERR, ERR, ERR, ERR },
+        /* CHR */ { ERR, ERR, ERR, BOL, ERR },
+        /* STR */ { ERR, ERR, ERR, BOL, ERR },
+        /* BOL */ { ERR, ERR, ERR, ERR, ERR },
+    },
+    // ── op1 = BOL ──
+    {
+        /* ERR */ { ERR, ERR, ERR, ERR, ERR },
+        /* INT */ { ERR, ERR, ERR, ERR, ERR },
+        /* FLT */ { ERR, ERR, ERR, ERR, ERR },
+        /* NOT */ { ERR, ERR, ERR, ERR, ERR },
+        /* CHR */ { ERR, ERR, ERR, ERR, ERR },
+        /* STR */ { ERR, ERR, ERR, ERR, ERR },
+        /* BOL */ { ERR, ERR, ERR, BOL, BOL },
+    },
+};
+
+// TABLA_UNARIA[tipo][operador] = tipo resultado
+//   columnas:  UN_NOT  UN_NEG
+const int TABLA_UNARIA[NUM_TIPOS][NUM_UNARIOS] = {
+    /* ERR */ { ERR, ERR },
+    /* INT */ { ERR, INT },
+    /* FLT */ { ERR, FLT },
+    /* NOT */ { ERR, NOT },
+    /* CHR */ { ERR, ERR },
+    /* STR */ { ERR, ERR },
+    /* BOL */ { BOL, ERR },
+};
+
+#undef ERR
+#undef INT
+#undef FLT
+#undef NOT
+#undef CHR
+#undef STR
+#undef BOL
+
+// Convierte el operador (TokenType) al grupo que se usa en el cubo. -1 = no existe
+static int grupoDeOperador(int op)
+{
+    switch (op) {
+        case suma: case resta: case multiplicacion:             return GRP_ARIT;
+        case division:                                          return GRP_DIV;
+        case modulus:                                           return GRP_MOD;
+        case igual: case diferente: case menor: case menorigual:
+        case mayor: case mayorigual:                            return GRP_REL;
+        case op_and: case op_or:                                return GRP_LOG;
+        default:                                                return -1;
+    }
+}
+
+static bool tipoValido(int t) { return t >= 0 && t < NUM_TIPOS; }
 
 int AccionSemantica(int tipo1, int tipo2, int operador)
 {
-    // Si alguno de los tipos ya es erróneo, propagar error
-    if (tipo1 == TIPO_ERROR || tipo2 == TIPO_ERROR)
+    int grupo = grupoDeOperador(operador);
+    if (grupo == -1 || !tipoValido(tipo1) || !tipoValido(tipo2))
         return TIPO_ERROR;
-
-    // Operadores aritméticos: + - * /
-    if (operador == suma || operador == resta || operador == multiplicacion || operador == division) {
-        bool esNum1 = (tipo1 == TIPO_INT || tipo1 == TIPO_FLOAT || tipo1 == TIPO_NOTACION);
-        bool esNum2 = (tipo2 == TIPO_INT || tipo2 == TIPO_FLOAT || tipo2 == TIPO_NOTACION);
-        if (esNum1 && esNum2) {
-            if (tipo1 == TIPO_INT && tipo2 == TIPO_INT)
-                return TIPO_INT;
-            return TIPO_FLOAT;
-        }
-        return TIPO_ERROR;
-    }
-
-    // Operador residuo (módulo): %
-    if (operador == modulus) {
-        if (tipo1 == TIPO_INT && tipo2 == TIPO_INT)
-            return TIPO_INT;
-        return TIPO_ERROR;
-    }
-
-    // Operadores relacionales: < <= > >=
-    if (operador == menor || operador == menorigual || operador == mayor || operador == mayorigual) {
-        bool esNum1 = (tipo1 == TIPO_INT || tipo1 == TIPO_FLOAT || tipo1 == TIPO_NOTACION);
-        bool esNum2 = (tipo2 == TIPO_INT || tipo2 == TIPO_FLOAT || tipo2 == TIPO_NOTACION);
-        if (esNum1 && esNum2)
-            return TIPO_BOOL;
-        return TIPO_ERROR;
-    }
-
-    // Operadores de igualdad: == !=
-    if (operador == igual || operador == diferente) {
-        bool esNum1 = (tipo1 == TIPO_INT || tipo1 == TIPO_FLOAT || tipo1 == TIPO_NOTACION);
-        bool esNum2 = (tipo2 == TIPO_INT || tipo2 == TIPO_FLOAT || tipo2 == TIPO_NOTACION);
-        if (esNum1 && esNum2)
-            return TIPO_BOOL;
-        if (tipo1 == TIPO_CHAR && tipo2 == TIPO_CHAR)
-            return TIPO_BOOL;
-        if (tipo1 == TIPO_STRING && tipo2 == TIPO_STRING)
-            return TIPO_BOOL;
-        if (tipo1 == TIPO_BOOL && tipo2 == TIPO_BOOL)
-            return TIPO_BOOL;
-        return TIPO_ERROR;
-    }
-
-    // Operadores lógicos: && ||
-    if (operador == op_and || operador == op_or) {
-        if (tipo1 == TIPO_BOOL && tipo2 == TIPO_BOOL)
-            return TIPO_BOOL;
-        return TIPO_ERROR;
-    }
-
-    return TIPO_ERROR;
-}
-
-// Sobrecarga conveniente para consultar con símbolo textual
-int AccionSemantica(int tipo1, int tipo2, const std::string& oper)
-{
-    int op = -1;
-    if (oper == "+") op = suma;
-    else if (oper == "-") op = resta;
-    else if (oper == "*") op = multiplicacion;
-    else if (oper == "/") op = division;
-    else if (oper == "%") op = modulus;
-    else if (oper == "==") op = igual;
-    else if (oper == "!=") op = diferente;
-    else if (oper == "<") op = menor;
-    else if (oper == "<=") op = menorigual;
-    else if (oper == ">") op = mayor;
-    else if (oper == ">=") op = mayorigual;
-    else if (oper == "&&") op = op_and;
-    else if (oper == "||") op = op_or;
-    return AccionSemantica(tipo1, tipo2, op);
+    return CUBO[tipo1][tipo2][grupo];
 }
 
 int AccionSemanticaUnica(int tipo, int operador)
 {
-    if (tipo == TIPO_ERROR)
-        return TIPO_ERROR;
+    int u;
+    if      (operador == op_not) u = UN_NOT;
+    else if (operador == OP_NEG) u = UN_NEG;
+    else return TIPO_ERROR;
 
-    // Negación lógica: !
-    if (operador == op_not) {
-        if (tipo == TIPO_BOOL)
-            return TIPO_BOOL;
-        return TIPO_ERROR;
-    }
-
-    // Negación aritmética: NEG
-    if (operador == OP_NEG) {
-        if (tipo == TIPO_INT || tipo == TIPO_FLOAT || tipo == TIPO_NOTACION)
-            return tipo;
-        return TIPO_ERROR;
-    }
-
-    return TIPO_ERROR;
-}
-
-// Sobrecarga conveniente para unarios textuales
-int AccionSemanticaUnica(int tipo, const std::string& oper)
-{
-    int op = -1;
-    if (oper == "!" || oper == "op_not") op = op_not;
-    else if (oper == "NEG" || oper == "-") op = OP_NEG;
-    return AccionSemanticaUnica(tipo, op);
+    if (!tipoValido(tipo)) return TIPO_ERROR;
+    return TABLA_UNARIA[tipo][u];
 }
 
 // ── Tablas de Símbolos y Constantes ──
@@ -1173,32 +1201,55 @@ void AnalizadorSintactico::accion_02()
 
 void AnalizadorSintactico::accion_03()
 {
-    if (semantica.pila_operadores.empty() || semantica.pila_tipos.empty() || semantica.pila_operandos.empty()) {
+    if (semantica.pila_operadores.empty() || semantica.pila_operadores.back() != OP_NEG ||
+        semantica.pila_tipos.empty() || semantica.pila_operandos.empty()) {
         marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
-                             "Error semántico interno: pila vacía en negación unaria (AS_03)");
+                             "Error semántico interno: pilas inconsistentes en negación unaria (AS_03)");
         return;
     }
-
-    if (semantica.pila_operadores.back() == OP_NEG) {
-        int tipo1 = semantica.pila_tipos.back();
-        if (tipo1 == TIPO_INT || tipo1 == TIPO_FLOAT || tipo1 == TIPO_NOTACION) {
-            int t = 0;
-            sacarTipo(semantica, t);
-            Operando id1;
-            sacarOperando(semantica, id1);
-            int op = 0;
-            sacarOperador(semantica, op);
-
-            if (!id1.nombre.empty() && id1.nombre[0] == '-') {
-                id1.nombre = id1.nombre.substr(1);
-            } else {
-                id1.nombre = "-" + id1.nombre;
-            }
-
-            empujarOperando(semantica, id1);
-            empujarTipo(semantica, tipo1);
+ 
+    // Se sacan operando, tipo y el operador NEG (siempre, haya error o no,
+    // para que las pilas queden balanceadas)
+    int tipo = 0;
+    sacarTipo(semantica, tipo);
+    Operando op;
+    sacarOperando(semantica, op);
+    int opNeg = 0;
+    sacarOperador(semantica, opNeg);
+ 
+    // El cubo unario decide si el tipo se puede negar (solo int, float, notación)
+    int tipoRes = AccionSemanticaUnica(tipo, OP_NEG);
+ 
+    if (tipoRes == TIPO_ERROR) {
+        if (tipo != TIPO_ERROR) {
+            marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                                 "no se puede negar un valor de tipo " + nombreTipoDato(tipo));
         }
+        empujarOperando(semantica, op);
+        empujarTipo(semantica, TIPO_ERROR);
+        return;
     }
+ 
+    if (op.clase == CLASE_CONSTANTE) {
+        // -5 es una constante negativa: se registra "-5" en la tabla de constantes.
+        // Si ya era negativa (- - 5), se le quita el signo.
+        std::string lexema = (op.nombre[0] == '-') ? op.nombre.substr(1)
+                                                   : "-" + op.nombre;
+        int dir = insertarConstante(semantica, lexema, tipo);
+        empujarOperando(semantica, {lexema, dir, CLASE_CONSTANTE});
+    } else {
+        // Variable o temporal: se genera el cuádruplo (NEG, x, --, Tn)
+        int numTemp = obtenerTemporal(semantica);
+        std::string nomTemp = nombreTemporal(numTemp);
+        generarCuadruplo(semantica, "NEG", op.nombre, "--", nomTemp);
+ 
+        // Si el operando era un temporal, se regresa al Avail
+        if (op.clase == CLASE_TEMPORAL)
+            regresarTemporal(semantica, std::stoi(op.nombre.substr(1)));
+ 
+        empujarOperando(semantica, {nomTemp, -1, CLASE_TEMPORAL});
+    }
+    empujarTipo(semantica, tipoRes);
 }
 
 void AnalizadorSintactico::accion_04()

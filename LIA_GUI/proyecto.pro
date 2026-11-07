@@ -16,4 +16,3 @@ HEADERS += \
 DEFINES += LIA_GUI_MODE
 
 QMAKE_LFLAGS += -municode
-QMAKE_LFLAGS += -municode

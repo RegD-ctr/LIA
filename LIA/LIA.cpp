@@ -353,10 +353,10 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
 
     // 23. EST_WRITE (output) → output ( EXPR EXPR' ) ;
     //     Nota: output es la instrucción de escritura/salida en LIA
-    {144, 119, NT_EXPR, NT_EXPR_P, 120, 123},
+    {144, 119, NT_EXPR, AS_20, NT_EXPR_P, 120, 123},
 
     // 24. EXPR' → , EXPR EXPR'
-    {124, NT_EXPR, NT_EXPR_P},
+       {124, NT_EXPR, AS_20, NT_EXPR_P},
 
     // 25. EXPR' → ε
     {},
@@ -667,6 +667,7 @@ std::string nombreSimbolo(int s) {
         case AS_17:          return "AS_17";
         case AS_18:          return "AS_18";
         case AS_19:          return "AS_19";
+        case AS_20:          return "AS_20";
         case AS_DECL_INI:    return "AS_DECL_INI";
         case AS_ID:          return "AS_ID";
         case AS_TIPO:        return "AS_TIPO";
@@ -1251,6 +1252,28 @@ void AnalizadorSintactico::accion_19()
         regresarTemporal(semantica, std::stoi(res.nombre.substr(1)));
 }
 
+void AnalizadorSintactico::accion_20()
+{
+    if (semantica.pila_operandos.empty() || semantica.pila_tipos.empty()) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "Error semántico interno: pilas vacías en output (AS_20)");
+        return;
+    }
+
+    Operando res;
+    sacarOperando(semantica, res);
+    int tipoRes = 0;
+    sacarTipo(semantica, tipoRes);
+
+    // Si la expresión ya tenía error, ese error se reportó antes: no se genera el cuádruplo
+    if (tipoRes != TIPO_ERROR)
+        generarCuadruplo(semantica, "out", "--", "--", res.nombre);
+
+    // El resultado ya se usó: si era un temporal, regresa al Avail
+    if (res.clase == CLASE_TEMPORAL)
+        regresarTemporal(semantica, std::stoi(res.nombre.substr(1)));
+}
+
 // Acciones de negación unaria (2, 3, 4)
 void AnalizadorSintactico::accion_02()
 {
@@ -1354,7 +1377,9 @@ void AnalizadorSintactico::ejecutarAccion(int accion)
                 if (buscarSimbolo(semantica, ultimoConsumido.lexema) == -1) {
                     marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
                                          "variable no declarada: " + ultimoConsumido.lexema);
-                }
+                   } else {
+                        generarCuadruplo(semantica, "in", "--", "--", ultimoConsumido.lexema);
+                    }
             }
             break;
 
@@ -1401,6 +1426,7 @@ void AnalizadorSintactico::ejecutarAccion(int accion)
         case AS_03: accion_03(); break;
         case AS_04: accion_04(); break;
         case AS_19: accion_19(); break;
+        case AS_20: accion_20(); break;
 
         // Acciones 5 y 6: Fondo falso "("
         case AS_05:

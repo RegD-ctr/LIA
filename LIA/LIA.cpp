@@ -349,7 +349,7 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     {NT_EST_BREAK},
 
     // 22. EST_ASIG → id = EXPR ;
-    {101, 109, NT_EXPR, 123},
+    {101, AS_01, 109, NT_EXPR, AS_19, 123},
 
     // 23. EST_WRITE (output) → output ( EXPR EXPR' ) ;
     //     Nota: output es la instrucción de escritura/salida en LIA
@@ -666,6 +666,7 @@ std::string nombreSimbolo(int s) {
         case AS_16:          return "AS_16";
         case AS_17:          return "AS_17";
         case AS_18:          return "AS_18";
+        case AS_19:          return "AS_19";
         case AS_DECL_INI:    return "AS_DECL_INI";
         case AS_ID:          return "AS_ID";
         case AS_TIPO:        return "AS_TIPO";
@@ -1193,6 +1194,63 @@ void AnalizadorSintactico::aplicarOperacionBinaria(bool resultadoBooleano)
     }
 }
 
+// ASIGNACIÓN:  EST_ASIG → id AS_01 = EXPR AS_19 ;
+
+// ASIGNA_OK[tipo_destino][tipo_expresion] = 1 si se puede asignar, 0 si no.
+// Regla: un real acepta un entero, pero un entero NO acepta un real.
+//
+//        expresión:  ERR INT FLT NOT CHR STR BOL
+const int ASIGNA_OK[NUM_TIPOS][NUM_TIPOS] = {
+    /* destino ERR */ {0,  0,  0,  0,  0,  0,  0 },
+    /* destino INT */ {0,  1,  0,  0,  0,  0,  0 },
+    /* destino FLT */ {0,  1,  1,  1,  0,  0,  0 },
+    /* destino NOT */ {0,  0,  0,  0,  0,  0,  0 }, 
+    /* destino CHR */ {0,  0,  0,  0,  1,  0,  0 },
+    /* destino STR */ {0,  0,  0,  0,  0,  1,  0 },
+    /* destino BOL */ {0,  0,  0,  0,  0,  0,  1 },
+};
+
+static bool asignacionCompatible(int tipoDestino, int tipoExpr)
+{
+    if (tipoDestino < 0 || tipoDestino >= NUM_TIPOS || tipoExpr < 0 || tipoExpr >= NUM_TIPOS)
+        return false;
+    return ASIGNA_OK[tipoDestino][tipoExpr] == 1;
+}
+
+void AnalizadorSintactico::accion_19()
+{
+    if (semantica.pila_operandos.size() < 2 || semantica.pila_tipos.size() < 2) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "Error semántico interno: pilas insuficientes en asignación (AS_19)");
+        return;
+    }
+
+    // Se sacan SIEMPRE los dos operandos y los dos tipos, haya error o no,
+    // para que las pilas queden balanceadas
+    Operando res;
+    sacarOperando(semantica, res);
+    int tipoRes = 0;
+    sacarTipo(semantica, tipoRes);
+
+    Operando destino;
+    sacarOperando(semantica, destino);
+    int tipoDestino = 0;
+    sacarTipo(semantica, tipoDestino);
+
+    if (tipoDestino == TIPO_ERROR || tipoRes == TIPO_ERROR) {
+
+    } else if (asignacionCompatible(tipoDestino, tipoRes)) {
+        generarCuadruplo(semantica, "=", res.nombre, "--", destino.nombre);
+    } else {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "Tipos incompatibles: no se puede asignar " + nombreTipoDato(tipoRes) +
+                             " a '" + destino.nombre + "' (" + nombreTipoDato(tipoDestino) + ")");
+    }
+
+    if (res.clase == CLASE_TEMPORAL)
+        regresarTemporal(semantica, std::stoi(res.nombre.substr(1)));
+}
+
 // Acciones de negación unaria (2, 3, 4)
 void AnalizadorSintactico::accion_02()
 {
@@ -1342,6 +1400,7 @@ void AnalizadorSintactico::ejecutarAccion(int accion)
         case AS_02: accion_02(); break;
         case AS_03: accion_03(); break;
         case AS_04: accion_04(); break;
+        case AS_19: accion_19(); break;
 
         // Acciones 5 y 6: Fondo falso "("
         case AS_05:
@@ -1586,57 +1645,3 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
 
     exitosoSemantico = semantica.errores.empty();
 }
-
-/*
-std::string leerArchivo(const std::string& nombreArchivo)
-{
-    std::ifstream archivo(nombreArchivo);
-    if (!archivo.is_open()) {
-        std::cerr << "Error: No se pudo abrir '" << nombreArchivo << "'\n";
-        return "";
-    }
-    std::string contenido, linea;
-    while (std::getline(archivo, linea))
-        contenido += linea + "\n";
-    archivo.close();
-    return contenido;
-}
-
-int main()
-{
-    std::string nombreArchivo = "C:/Users/diego/OneDrive/Desktop/LIA/Lenguaje.txt";
-    std::string codigo = leerArchivo(nombreArchivo);
-
-    if (codigo.empty()) {
-        std::cout << "No se pudo leer el archivo o está vacío.\n";
-        return 1;
-    }
-
-    // ── Análisis léxico ──
-    std::vector<token> tokens = AnalizarLexico(codigo);
-    std::cout << "\n--- Análisis Léxico ---\n";
-    for (const auto& t : tokens) {
-        if (static_cast<int>(t.tipo) >= 500)
-            std::cout << "[ERROR] " << t.tipo << " | '" << t.lexema
-                      << "' | Fila:" << t.fila << " Col:" << t.columna << "\n";
-        else
-            std::cout << "[TOKEN] " << t.tipo << " | '" << t.lexema
-                      << "' | Fila:" << t.fila << " Col:" << t.columna << "\n";
-    }
-
-    // ── Análisis sintáctico ──
-    AnalizadorSintactico sintactico;
-    sintactico.analizar(codigo);
-
-    std::cout << "\n--- Análisis Sintáctico ---\n";
-    if (sintactico.exitoso) {
-        std::cout << "Análisis sintáctico correcto. Sin errores.\n";
-    } else {
-        for (const auto& err : sintactico.errores)
-            std::cout << "Error Fila:" << err.fila << " Col:" << err.columna
-                      << " — " << err.mensaje << "\n";
-    }
-
-    return 0;
-}
-*/

@@ -126,7 +126,7 @@ const int NT_OPREL       = 231;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ACCIONES SEMÁNTICAS (para traducción y generación de cuádruplos)
-// Van del 301 al 323 para no colisionar con TokenType ni con los no terminales
+// para no colisionar con TokenType ni con los no terminales
 // ─────────────────────────────────────────────────────────────────────────────
 const int AS_01 = 301;
 const int AS_02 = 302;
@@ -138,16 +138,19 @@ const int AS_07 = 307;
 const int AS_08 = 308;
 const int AS_09 = 309;
 const int AS_10 = 310;
-const int AS_11 = 311;
+const int AS_11 = 311;  
 const int AS_12 = 312;
-const int AS_13 = 313;
+const int AS_13 = 313;  
 const int AS_14 = 314;
 const int AS_15 = 315;
 const int AS_16 = 316;
 const int AS_17 = 317;
-const int AS_18 = 318;
-const int AS_19 = 319;
+const int AS_18 = 318;  
+const int AS_19 = 319; 
 const int AS_20 = 320;
+const int AS_21 = 324;   // if: Gotof tras la condición
+const int AS_22 = 325;   // if: Goto al entrar al else
+const int AS_23 = 326;   // if: cierre, backpatching final
 
 // Auxiliares de tabla de símbolos
 const int AS_DECL_INI = 321;
@@ -327,6 +330,9 @@ struct AnalizadorSintactico {
 
     void accion_19();
     void accion_20();
+    void accion_21();
+    void accion_22();
+    void accion_23();
 
     void analizar(const std::string& codigo);
 };

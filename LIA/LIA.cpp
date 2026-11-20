@@ -371,11 +371,11 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 28. EST_DO → do ESTATUTOS dowhile ( EXPR ) ;
     {141, NT_ESTATUTOS, 146, 119, NT_EXPR, 120, 123},
 
-    // 29. EST_IF → if ( EXPR ) { ESTATUTOS EST_IF' }
-    {139, 119, NT_EXPR, 120, 129, NT_ESTATUTOS, NT_EST_IF_P, 130},
+    // 29. EST_IF → if ( EXPR ) AS_21 { ESTATUTOS EST_IF' } AS_23
+    {139, 119, NT_EXPR, 120, AS_21, 129, NT_ESTATUTOS, NT_EST_IF_P, 130, AS_23},
 
-    // 30. EST_IF' → else ESTATUTOS 
-    {140, NT_ESTATUTOS},
+    // 30. EST_IF' → else AS_22 ESTATUTOS
+    {140, AS_22, NT_ESTATUTOS},
 
     // 31. EST_IF' → ε
     {},
@@ -668,6 +668,9 @@ std::string nombreSimbolo(int s) {
         case AS_18:          return "AS_18";
         case AS_19:          return "AS_19";
         case AS_20:          return "AS_20";
+        case AS_21:          return "AS_21";
+        case AS_22:          return "AS_22";
+        case AS_23:          return "AS_23";
         case AS_DECL_INI:    return "AS_DECL_INI";
         case AS_ID:          return "AS_ID";
         case AS_TIPO:        return "AS_TIPO";
@@ -1218,6 +1221,79 @@ static bool asignacionCompatible(int tipoDestino, int tipoExpr)
     return ASIGNA_OK[tipoDestino][tipoExpr] == 1;
 }
 
+// Regresa al Avail un operando si era temporal
+static void liberarSiTemporal(EstadoSemantico& e, const Operando& op)
+{
+    if (op.clase == CLASE_TEMPORAL && op.nombre.size() > 1 && op.nombre[0] == 'T') {
+        try { regresarTemporal(e, std::stoi(op.nombre.substr(1))); } catch (...) {}
+    }
+}
+
+// AS_21: después de ')' del if → Gotof
+void AnalizadorSintactico::accion_21()
+{
+    if (semantica.pila_operandos.empty() || semantica.pila_tipos.empty()) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "Error semántico interno: pilas vacías en if (AS_21)");
+        empujarSalto(semantica, -1);   // centinela para mantener balance
+        return;
+    }
+
+    // Pop SIEMPRE, antes de validar
+    Operando cond;
+    sacarOperando(semantica, cond);
+    int tipoCond = 0;
+    sacarTipo(semantica, tipoCond);
+
+    if (tipoCond == TIPO_ERROR) {
+        empujarSalto(semantica, -1);
+    } else if (tipoCond != TIPO_BOOL) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "La condición del if debe ser de tipo bool, no " + nombreTipoDato(tipoCond));
+        empujarSalto(semantica, -1);
+    } else {
+        int idx = generarCuadruplo(semantica, "Gotof", cond.nombre, "--", "PENDIENTE");
+        empujarSalto(semantica, idx);
+    }
+
+    liberarSiTemporal(semantica, cond);
+}
+
+// AS_22: al entrar al else → Goto + rellenar el Gotof
+void AnalizadorSintactico::accion_22()
+{
+    int pendiente = 0;
+    if (!sacarSalto(semantica, pendiente)) {   // ya marca "pila vacía: saltos"
+        empujarSalto(semantica, -1);
+        return;
+    }
+    if (pendiente == -1) {                     // condición inválida: no hay nada que rellenar
+        empujarSalto(semantica, -1);
+        return;
+    }
+
+    // Salto incondicional que brinca el bloque else al terminar el then
+    int idxGoto = generarCuadruplo(semantica, "Goto", "--", "--", "PENDIENTE");
+
+    // El Gotof apunta al primer cuádruplo del else (el que sigue al Goto)
+    rellenarCuadruplo(semantica, pendiente, std::to_string(siguienteIndiceCuadruplo(semantica)));
+
+    empujarSalto(semantica, idxGoto);
+}
+
+// AS_23: fin del if / if-else → rellenar el último pendiente
+void AnalizadorSintactico::accion_23()
+{
+    int pendiente = 0;
+    if (!sacarSalto(semantica, pendiente))
+        return;
+    if (pendiente == -1)
+        return;
+
+    // Gotof (sin else) o Goto (con else) apuntan al siguiente cuádruplo
+    rellenarCuadruplo(semantica, pendiente, std::to_string(siguienteIndiceCuadruplo(semantica)));
+}
+
 void AnalizadorSintactico::accion_19()
 {
     if (semantica.pila_operandos.size() < 2 || semantica.pila_tipos.size() < 2) {
@@ -1370,7 +1446,7 @@ void AnalizadorSintactico::ejecutarAccion(int accion)
             variablesPendientes.clear();
             break;
 
-        case AS_ID:
+        case AS_ID: 
             if (enDeclaracion) {
                 variablesPendientes.push_back(ultimoConsumido.lexema);
             } else {
@@ -1425,8 +1501,12 @@ void AnalizadorSintactico::ejecutarAccion(int accion)
         case AS_02: accion_02(); break;
         case AS_03: accion_03(); break;
         case AS_04: accion_04(); break;
+
         case AS_19: accion_19(); break;
         case AS_20: accion_20(); break;
+        case AS_21: accion_21(); break;
+        case AS_22: accion_22(); break;
+        case AS_23: accion_23(); break;
 
         // Acciones 5 y 6: Fondo falso "("
         case AS_05:
@@ -1607,7 +1687,7 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
         }
 
         // ── Caso 1: acción semántica (301..323) ──
-        if (tope >= 301 && tope <= 323) {
+        if (tope >= 301 && tope <= 326) {
             pila.pop();
             // Si ya hubo error sintáctico, descartar acciones para no operar con pilas inconsistentes
             if (exitoso) {
@@ -1617,7 +1697,7 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
         }
 
         // ── Caso 2: terminal ──
-        bool esTerminal = (tope < 201 || (tope > 231 && tope < 301) || tope > 323) && (tope != SIMBOLO_EOF);
+        bool esTerminal = (tope < 201 || (tope > 231 && tope < 301) || tope > 326) && (tope != SIMBOLO_EOF);
 
         if (esTerminal) {
             if (tope == static_cast<int>(actual.tipo)) {

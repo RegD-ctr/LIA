@@ -368,8 +368,8 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 27. EST_BREAK → break ;
     {147, 123},
 
-    // 28. EST_DO → do ESTATUTOS dowhile ( EXPR ) ;
-    {141, NT_ESTATUTOS, 146, 119, NT_EXPR, 120, 123},
+    // 28. EST_DO → do AS_24 ESTATUTOS dowhile ( EXPR ) AS_25 ;
+    {141, AS_24, NT_ESTATUTOS, 146, 119, NT_EXPR, 120, AS_25, 123},
 
     // 29. EST_IF → if ( EXPR ) AS_21 { ESTATUTOS EST_IF' } AS_23
     {139, 119, NT_EXPR, 120, AS_21, 129, NT_ESTATUTOS, NT_EST_IF_P, 130, AS_23},
@@ -669,8 +669,9 @@ std::string nombreSimbolo(int s) {
         case AS_19:          return "AS_19";
         case AS_20:          return "AS_20";
         case AS_21:          return "AS_21";
-        case AS_22:          return "AS_22";
         case AS_23:          return "AS_23";
+        case AS_24:          return "AS_24";
+        case AS_25:          return "AS_25";
         case AS_DECL_INI:    return "AS_DECL_INI";
         case AS_ID:          return "AS_ID";
         case AS_TIPO:        return "AS_TIPO";
@@ -1106,7 +1107,6 @@ int buscarSimbolo(const EstadoSemantico& e, const std::string& nombre)
 }
 
 // ── Generación y Relleno de Cuádruplos (Backpatching) ──
-
 int generarCuadruplo(EstadoSemantico& e, const std::string& oper, const std::string& op1, const std::string& op2, const std::string& resultado)
 {
     Cuadruplo q;
@@ -1292,6 +1292,44 @@ void AnalizadorSintactico::accion_23()
 
     // Gotof (sin else) o Goto (con else) apuntan al siguiente cuádruplo
     rellenarCuadruplo(semantica, pendiente, std::to_string(siguienteIndiceCuadruplo(semantica)));
+}
+
+// AS_24: justo después de 'do' → guardar el inicio del cuerpo
+void AnalizadorSintactico::accion_24()
+{
+    empujarSalto(semantica, siguienteIndiceCuadruplo(semantica));
+}
+
+// AS_25: después de ')' del dowhile → Gotov al inicio del cuerpo
+void AnalizadorSintactico::accion_25()
+{
+    // 1) Todos los pop primero, para no dejar basura en ninguna pila
+    int dirInicio = 0;
+    bool hayInicio = sacarSalto(semantica, dirInicio);   // ya marca "pila vacía: saltos"
+
+    if (semantica.pila_operandos.empty() || semantica.pila_tipos.empty()) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "Error semántico interno: pilas vacías en dowhile (AS_25)");
+        return;
+    }
+
+    Operando cond;
+    sacarOperando(semantica, cond);
+    int tipoCond = 0;
+    sacarTipo(semantica, tipoCond);
+
+    // 2) Validación
+    if (tipoCond == TIPO_ERROR) {
+    } else if (tipoCond != TIPO_BOOL) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "La condición del dowhile debe ser de tipo bool, no " +
+                             nombreTipoDato(tipoCond));
+    } else if (hayInicio) {
+        generarCuadruplo(semantica, "Gotov", cond.nombre, "--", std::to_string(dirInicio));
+    }
+
+    // 3) Reciclar el temporal de la condición en todos los caminos
+    liberarSiTemporal(semantica, cond);
 }
 
 void AnalizadorSintactico::accion_19()
@@ -1507,6 +1545,8 @@ void AnalizadorSintactico::ejecutarAccion(int accion)
         case AS_21: accion_21(); break;
         case AS_22: accion_22(); break;
         case AS_23: accion_23(); break;
+        case AS_24: accion_24(); break;
+        case AS_25: accion_25(); break;
 
         // Acciones 5 y 6: Fondo falso "("
         case AS_05:
@@ -1686,10 +1726,9 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
             }
         }
 
-        // ── Caso 1: acción semántica (301..323) ──
-        if (tope >= 301 && tope <= 326) {
+        // ── Caso 1: acción semántica (301..AS_ULTIMA) ──
+        if (tope >= 301 && tope <= AS_ULTIMA) {
             pila.pop();
-            // Si ya hubo error sintáctico, descartar acciones para no operar con pilas inconsistentes
             if (exitoso) {
                 ejecutarAccion(tope);
             }
@@ -1697,7 +1736,7 @@ void AnalizadorSintactico::analizar(const std::string& codigo)
         }
 
         // ── Caso 2: terminal ──
-        bool esTerminal = (tope < 201 || (tope > 231 && tope < 301) || tope > 326) && (tope != SIMBOLO_EOF);
+        bool esTerminal = (tope < 201 || (tope > 231 && tope < 301) || tope > AS_ULTIMA) && (tope != SIMBOLO_EOF);
 
         if (esTerminal) {
             if (tope == static_cast<int>(actual.tipo)) {

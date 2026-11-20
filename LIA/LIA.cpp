@@ -383,8 +383,8 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 32. EST_WHILE → while ( EXPR ) { ESTATUTOS }
     {142, 119, NT_EXPR, 120, 129, NT_ESTATUTOS, 130},
 
-    // 33. EST_LOOP → loop { ESTATUTOS }
-    {148, 129, NT_ESTATUTOS, 130},
+    // 33. EST_LOOP → loop AS_26 { ESTATUTOS } ( EXPR ) AS_27 ;
+    {148, AS_26, 129, NT_ESTATUTOS, 130, 119, NT_EXPR, 120, AS_27, 123},
 
     // 34. EXPR → EXPR2 EXPR''
     {NT_EXPR2, NT_EXPR_PP},
@@ -669,9 +669,12 @@ std::string nombreSimbolo(int s) {
         case AS_19:          return "AS_19";
         case AS_20:          return "AS_20";
         case AS_21:          return "AS_21";
+        case AS_22:          return "AS_22"; 
         case AS_23:          return "AS_23";
         case AS_24:          return "AS_24";
         case AS_25:          return "AS_25";
+        case AS_26:          return "AS_26";
+        case AS_27:          return "AS_27";
         case AS_DECL_INI:    return "AS_DECL_INI";
         case AS_ID:          return "AS_ID";
         case AS_TIPO:        return "AS_TIPO";
@@ -1332,6 +1335,45 @@ void AnalizadorSintactico::accion_25()
     liberarSiTemporal(semantica, cond);
 }
 
+// AS_26: justo después de 'loop' → guardar el inicio del cuerpo
+void AnalizadorSintactico::accion_26()
+{
+    empujarSalto(semantica, siguienteIndiceCuadruplo(semantica));
+}
+
+// AS_27: después de ')' del loop → Gotof al inicio (repite mientras la condición sea FALSA)
+void AnalizadorSintactico::accion_27()
+{
+    // 1) Todos los pop primero, para no dejar basura en ninguna pila
+    int dirInicio = 0;
+    bool hayInicio = sacarSalto(semantica, dirInicio);   // ya marca "pila vacía: saltos"
+
+    if (semantica.pila_operandos.empty() || semantica.pila_tipos.empty()) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "Error semántico interno: pilas vacías en loop (AS_27)");
+        return;
+    }
+
+    Operando cond;
+    sacarOperando(semantica, cond);
+    int tipoCond = 0;
+    sacarTipo(semantica, tipoCond);
+
+    // 2) Validación
+    if (tipoCond == TIPO_ERROR) {
+        // error ya reportado antes: sin errores en cascada
+    } else if (tipoCond != TIPO_BOOL) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "La condición del loop debe ser de tipo bool, no " +
+                             nombreTipoDato(tipoCond));
+    } else if (hayInicio) {
+        generarCuadruplo(semantica, "Gotof", cond.nombre, "--", std::to_string(dirInicio));
+    }
+
+    // 3) Reciclar el temporal de la condición en todos los caminos
+    liberarSiTemporal(semantica, cond);
+}
+
 void AnalizadorSintactico::accion_19()
 {
     if (semantica.pila_operandos.size() < 2 || semantica.pila_tipos.size() < 2) {
@@ -1547,6 +1589,8 @@ void AnalizadorSintactico::ejecutarAccion(int accion)
         case AS_23: accion_23(); break;
         case AS_24: accion_24(); break;
         case AS_25: accion_25(); break;
+        case AS_26: accion_26(); break;
+        case AS_27: accion_27(); break;
 
         // Acciones 5 y 6: Fondo falso "("
         case AS_05:

@@ -153,10 +153,12 @@ const int AS_22 = 325;   // if: Goto al entrar al else
 const int AS_23 = 326;   // if: cierre, backpatching final
 const int AS_24 = 327;   // dowhile: guarda inicio del cuerpo (AS_DO_1)
 const int AS_25 = 328;   // dowhile: Gotov hacia el inicio  (AS_DO_2)
+const int AS_26 = 329;   // loop: guarda inicio del cuerpo
+const int AS_27 = 330;   // loop: Gotof hacia el inicio (repite mientras sea falso)
 
 // Última acción semántica válida (auxiliar para el control de la pila sintactica)
 //(se actualiza cada que se agregue una accion semantica nueva)
-const int AS_ULTIMA = 328;
+const int AS_ULTIMA = 330;
 
 // Auxiliares de tabla de símbolos
 const int AS_DECL_INI = 321;
@@ -341,6 +343,8 @@ struct AnalizadorSintactico {
     void accion_23();
     void accion_24();
     void accion_25();
+    void accion_26();
+    void accion_27();
 
     void analizar(const std::string& codigo);
 };

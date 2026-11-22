@@ -380,8 +380,8 @@ const std::vector<std::vector<int>> PRODUCCIONES = {
     // 31. EST_IF' → ε
     {},
 
-    // 32. EST_WHILE → while ( EXPR ) { ESTATUTOS }
-    {142, 119, NT_EXPR, 120, 129, NT_ESTATUTOS, 130},
+    // 32. EST_WHILE → while AS_28 ( EXPR ) { AS_29 ESTATUTOS } AS_30
+    {142, AS_28, 119, NT_EXPR, 120, 129, AS_29, NT_ESTATUTOS, 130, AS_30},
 
     // 33. EST_LOOP → loop AS_26 { ESTATUTOS } ( EXPR ) AS_27 ;
     {148, AS_26, 129, NT_ESTATUTOS, 130, 119, NT_EXPR, 120, AS_27, 123},
@@ -675,6 +675,9 @@ std::string nombreSimbolo(int s) {
         case AS_25:          return "AS_25";
         case AS_26:          return "AS_26";
         case AS_27:          return "AS_27";
+        case AS_28:          return "AS_28";
+        case AS_29:          return "AS_29";
+        case AS_30:          return "AS_30";
         case AS_DECL_INI:    return "AS_DECL_INI";
         case AS_ID:          return "AS_ID";
         case AS_TIPO:        return "AS_TIPO";
@@ -1374,6 +1377,62 @@ void AnalizadorSintactico::accion_27()
     liberarSiTemporal(semantica, cond);
 }
 
+// AS_28: justo después de 'while' guardar el inicio de la condición
+void AnalizadorSintactico::accion_28()
+{
+    empujarSalto(semantica, siguienteIndiceCuadruplo(semantica));
+}
+
+// AS_29: después de '{' del while generar goto incondicional pendiente
+void AnalizadorSintactico::accion_29()
+{
+    if (semantica.pila_operandos.empty() || semantica.pila_tipos.empty()) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "Error semántico interno: pilas vacías en while (AS_29)");
+        empujarSalto(semantica, -1);   // centinela para que AS_30 siga balanceada
+        return;
+    }
+
+    // Pop SIEMPRE, antes de validar
+    Operando cond;
+    sacarOperando(semantica, cond);
+    int tipoCond = 0;
+    sacarTipo(semantica, tipoCond);
+
+    if (tipoCond == TIPO_ERROR) {
+        // error ya reportado antes: sin errores en cascada
+        empujarSalto(semantica, -1);
+    } else if (tipoCond != TIPO_BOOL) {
+        marcarErrorSemantico(semantica, ultimoConsumido.fila, ultimoConsumido.columna,
+                             "La condición del while debe ser de tipo bool, no " +
+                             nombreTipoDato(tipoCond));
+        empujarSalto(semantica, -1);
+    } else {
+        int idx = generarCuadruplo(semantica, "Gotof", cond.nombre, "--", "PENDIENTE");
+        empujarSalto(semantica, idx);
+    }
+
+    liberarSiTemporal(semantica, cond);
+}
+
+// AS_30: despues de cerrar el while: Goto al inicio y rellenar el Gotof
+void AnalizadorSintactico::accion_30()
+{
+    // LIFO: primero el Gotof pendiente, luego la dirección de retorno
+    int falso = 0;
+    bool hayFalso = sacarSalto(semantica, falso);
+    int retorno = 0;
+    bool hayRetorno = sacarSalto(semantica, retorno);
+
+    if (!hayFalso || !hayRetorno)
+        return;                      // sacarSalto ya marcó "pila vacía: saltos"
+    if (falso == -1)
+        return;                      // condición inválida: nada que emitir ni rellenar
+
+    generarCuadruplo(semantica, "Goto", "--", "--", std::to_string(retorno));
+    rellenarCuadruplo(semantica, falso, std::to_string(siguienteIndiceCuadruplo(semantica)));
+}
+
 void AnalizadorSintactico::accion_19()
 {
     if (semantica.pila_operandos.size() < 2 || semantica.pila_tipos.size() < 2) {
@@ -1591,6 +1650,9 @@ void AnalizadorSintactico::ejecutarAccion(int accion)
         case AS_25: accion_25(); break;
         case AS_26: accion_26(); break;
         case AS_27: accion_27(); break;
+        case AS_28: accion_28(); break;
+        case AS_29: accion_29(); break;
+        case AS_30: accion_30(); break;
 
         // Acciones 5 y 6: Fondo falso "("
         case AS_05:

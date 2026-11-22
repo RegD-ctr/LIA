@@ -130,15 +130,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(btnSalir, &QPushButton::clicked, this, &QWidget::close);
 }
 
-void MainWindow::onAbrir()
-{
+void MainWindow::onAbrir() {
     QString archivo = QFileDialog::getOpenFileName(
-        this, "Abrir archivo", "", "Archivos de texto (*.txt *.lia);;Todos (*)");
-    if (!archivo.isEmpty())
-    {
+        this,
+        "Abrir archivo LIA",
+        "",
+        "Archivos LIA (*.lia);;Archivos de texto (*.txt);;Todos (*)"
+    );
+    if (!archivo.isEmpty()) {
         QFile file(archivo);
-        if (file.open(QIODevice::ReadOnly | QIODevice::Text))
-        {
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file);
             editorCodigo->setText(in.readAll());
             file.close();
@@ -146,15 +147,21 @@ void MainWindow::onAbrir()
     }
 }
 
-void MainWindow::onGuardar()
-{
+void MainWindow::onGuardar() {
     QString archivo = QFileDialog::getSaveFileName(
-        this, "Guardar archivo", "", "Archivos de texto (*.txt);;Todos (*)");
-    if (!archivo.isEmpty())
-    {
+        this,
+        "Guardar archivo LIA",
+        "programa.lia",
+        "Archivos LIA (*.lia);;Archivos de texto (*.txt);;Todos (*)"
+    );
+    if (!archivo.isEmpty()) {
+        if (!archivo.endsWith(".lia", Qt::CaseInsensitive) && 
+            !archivo.endsWith(".txt", Qt::CaseInsensitive)) {
+            archivo += ".lia";
+        }
+
         QFile file(archivo);
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text))
-        {
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&file);
             out << editorCodigo->toPlainText();
             file.close();
